@@ -1,0 +1,30 @@
+{
+  "rules": {
+    ".read": "auth != null",
+    ".write": "auth != null",
+    "quartos": {
+      ".read": "auth != null",
+      ".write": "auth != null"
+    },
+    "hospedes": {
+      ".read": "auth != null",
+      ".write": "auth != null"
+    },
+    "itens": {
+      ".read": "auth != null",
+      ".write": "auth != null"
+    },
+    "consumo": {
+      ".read": "auth != null",
+      ".write": "auth != null"
+    },
+    "usuarios": {
+      ".read": "auth != null",
+      ".write": "auth != null"
+    },
+    "pagamentos": {
+      ".read": "auth != null",
+      ".write": "auth != null"
+    }
+  }
+}
