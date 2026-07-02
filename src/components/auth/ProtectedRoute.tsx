@@ -10,7 +10,7 @@ interface ProtectedRouteProps {
 }
 
 export default function ProtectedRoute({ children, area, somenteAdmin = false }: ProtectedRouteProps) {
-  const { firebaseUser, usuario, loading, isAuthorized } = useAuth()
+  const { autenticado, usuario, loading, isAuthorized } = useAuth()
 
   if (loading) {
     return (
@@ -25,7 +25,7 @@ export default function ProtectedRoute({ children, area, somenteAdmin = false }:
     )
   }
 
-  if (!firebaseUser) return <Navigate to="/login" replace />
+  if (!autenticado) return <Navigate to="/login" replace />
 
   const semAcesso = (somenteAdmin && !usuario?.admin) || (area && !isAuthorized(area))
 

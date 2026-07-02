@@ -1,27 +1,12 @@
-import { createContext, useContext, useEffect, useState, ReactNode } from 'react'
-import {
-  signInWithEmailAndPassword,
-  createUserWithEmailAndPassword,
-  signOut,
-  onAuthStateChanged,
-  User as FirebaseUser
-} from 'firebase/auth'
-import { FirebaseError } from 'firebase/app'
-import { auth } from '../services/firebase'
+import { createContext, useContext, useState, ReactNode } from 'react'
 import { useData } from './DataContext'
 import { Usuario, AreaKey } from '../types'
 
-// Por enquanto, único login com bootstrap automático do sistema
-const ADMIN_ACCOUNT = {
-  email: 'adm@pousadasertanejo.com',
-  senha: 'adm@2025',
-  nome: 'Administrador'
-}
-
+// Login mockado: qualquer email/senha autentica, sem validação contra backend.
 const TODAS_AREAS: AreaKey[] = ['dashboard', 'quartos', 'hospedes', 'itens', 'consumo', 'entrada', 'colaboradores', 'mapaHospedes']
 
 interface AuthContextType {
-  firebaseUser: FirebaseUser | null
+  autenticado: boolean
   usuario: Usuario | null
   loading: boolean
   login: (email: string, senha: string) => Promise<void>
@@ -32,63 +17,31 @@ interface AuthContextType {
 const AuthContext = createContext<AuthContextType | null>(null)
 
 export function AuthProvider({ children }: { children: ReactNode }) {
-  const [firebaseUser, setFirebaseUser] = useState<FirebaseUser | null>(null)
+  const [autenticado, setAutenticado] = useState(false)
   const [usuario, setUsuario] = useState<Usuario | null>(null)
-  const [loading, setLoading] = useState(true)
+  const [loading] = useState(false)
   const { getUsuarioPorEmail, addUsuario } = useData()
 
-  useEffect(() => {
-    const unsubscribe = onAuthStateChanged(auth, (fbUser) => {
-      setFirebaseUser(fbUser)
-      if (fbUser?.email) {
-        const perfil = getUsuarioPorEmail(fbUser.email)
-        setUsuario(perfil || null)
-      } else {
-        setUsuario(null)
-      }
-      setLoading(false)
-    })
-    return unsubscribe
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [])
-
-  const login = async (email: string, senha: string) => {
-    const isAdminBootstrap = email === ADMIN_ACCOUNT.email && senha === ADMIN_ACCOUNT.senha
-
-    let cred
-    try {
-      cred = await signInWithEmailAndPassword(auth, email, senha)
-    } catch (err) {
-      if (
-        isAdminBootstrap &&
-        err instanceof FirebaseError &&
-        (err.code === 'auth/user-not-found' || err.code === 'auth/invalid-credential')
-      ) {
-        // Primeira execução: cria a conta admin no Firebase Auth
-        cred = await createUserWithEmailAndPassword(auth, email, senha)
-      } else {
-        throw err
-      }
-    }
-
-    let perfil = getUsuarioPorEmail(cred.user.email || email)
-    if (!perfil && isAdminBootstrap) {
+  const login = async (email: string, _senha: string) => {
+    let perfil = getUsuarioPorEmail(email)
+    if (!perfil) {
       perfil = addUsuario({
-        nome: ADMIN_ACCOUNT.nome,
+        nome: email.split('@')[0] || 'Usuário',
         cpf: '',
         contato: '',
-        email: ADMIN_ACCOUNT.email,
+        email,
         admin: true,
         areas: TODAS_AREAS,
-        loginUsername: ADMIN_ACCOUNT.email
+        loginUsername: email
       })
     }
-    setUsuario(perfil || null)
+    setUsuario(perfil)
+    setAutenticado(true)
   }
 
   const logout = async () => {
-    await signOut(auth)
     setUsuario(null)
+    setAutenticado(false)
   }
 
   const isAuthorized = (area: AreaKey) => {
@@ -97,7 +50,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   }
 
   return (
-    <AuthContext.Provider value={{ firebaseUser, usuario, loading, login, logout, isAuthorized }}>
+    <AuthContext.Provider value={{ autenticado, usuario, loading, login, logout, isAuthorized }}>
       {children}
     </AuthContext.Provider>
   )
