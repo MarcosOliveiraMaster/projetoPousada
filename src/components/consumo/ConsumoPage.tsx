@@ -1,32 +1,14 @@
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import { useData } from '../../contexts/DataContext'
 import { ItemConsumo } from '../../types'
 import { useAuth } from '../../contexts/AuthContext'
 import { formatarMoeda } from '../../utils/format'
+import { getIconeConsumo, getItemBibliotecaConsumo } from '../../constants/consumoBiblioteca'
+import ModalBibliotecaConsumo from './ModalBibliotecaConsumo'
 import {
-  Plus, ShoppingBasket, Edit2, Trash2, X, Check,
-  Minus, Coffee, Wine, Apple, Sandwich, Droplets, Cookie, Beef, Fish, Salad,
+  Plus, ShoppingBasket, Edit2, Trash2, X, Check, Minus,
   ArrowDownCircle, ArrowUpCircle, History
 } from 'lucide-react'
-
-const ICONES_DISPONIVEIS = [
-  { value: 'coffee',    label: 'Café',      icon: <Coffee className="w-6 h-6" /> },
-  { value: 'wine',      label: 'Bebida',    icon: <Wine className="w-6 h-6" /> },
-  { value: 'apple',     label: 'Fruta',     icon: <Apple className="w-6 h-6" /> },
-  { value: 'sandwich',  label: 'Lanche',    icon: <Sandwich className="w-6 h-6" /> },
-  { value: 'water',     label: 'Água',      icon: <Droplets className="w-6 h-6" /> },
-  { value: 'cookie',    label: 'Snack',     icon: <Cookie className="w-6 h-6" /> },
-  { value: 'beef',      label: 'Carne',     icon: <Beef className="w-6 h-6" /> },
-  { value: 'fish',      label: 'Peixe',     icon: <Fish className="w-6 h-6" /> },
-  { value: 'salad',     label: 'Salada',    icon: <Salad className="w-6 h-6" /> },
-  { value: 'basket',    label: 'Outro',     icon: <ShoppingBasket className="w-6 h-6" /> },
-]
-
-function getIconeConsumo(value: string, size = 'w-8 h-8') {
-  const found = ICONES_DISPONIVEIS.find(i => i.value === value)
-  if (!found) return <ShoppingBasket className={size} strokeWidth={1.5} />
-  return <span className={size}>{found.icon}</span>
-}
 
 interface FormConsumoProps {
   inicial?: ItemConsumo
@@ -35,10 +17,36 @@ interface FormConsumoProps {
 }
 
 function FormConsumo({ inicial, onSalvar, onCancelar }: FormConsumoProps) {
+  const { iconesConsumoFixados, adicionarIconeConsumoFixado, removerIconeConsumoFixado } = useData()
   const [nome, setNome] = useState(inicial?.nome || '')
   const [qtd, setQtd] = useState(inicial?.qtdAtual ?? 0)
   const [preco, setPreco] = useState(inicial?.preco ?? 0)
-  const [icone, setIcone] = useState(inicial?.icone || 'basket')
+  const [icone, setIcone] = useState(inicial?.icone || iconesConsumoFixados[0] || 'coffee')
+  const [bibliotecaAberta, setBibliotecaAberta] = useState(false)
+  const [menuContexto, setMenuContexto] = useState<{ x: number; y: number; value: string } | null>(null)
+
+  useEffect(() => {
+    if (!menuContexto) return
+    const fechar = () => setMenuContexto(null)
+    window.addEventListener('click', fechar)
+    window.addEventListener('scroll', fechar, true)
+    return () => {
+      window.removeEventListener('click', fechar)
+      window.removeEventListener('scroll', fechar, true)
+    }
+  }, [menuContexto])
+
+  const escolherDaBiblioteca = (value: string, label: string) => {
+    setIcone(value)
+    if (!nome.trim() || nome === getItemBibliotecaConsumo(icone)?.label) setNome(label)
+    adicionarIconeConsumoFixado(value)
+    setBibliotecaAberta(false)
+  }
+
+  const excluirFixado = () => {
+    if (menuContexto) removerIconeConsumoFixado(menuContexto.value)
+    setMenuContexto(null)
+  }
 
   const inputClass = "w-full px-3 py-2.5 rounded-xl border border-sand-200 bg-sand-50 font-body text-sm text-brand-900 placeholder:text-sand-400 focus:outline-none focus:ring-2 focus:ring-brand-400"
 
@@ -76,16 +84,28 @@ function FormConsumo({ inicial, onSalvar, onCancelar }: FormConsumoProps) {
 
         <div className="sm:col-span-2">
           <label className="block font-body text-xs font-medium text-brand-700 uppercase tracking-wider mb-2">Ícone</label>
+          <p className="font-body text-xs text-sand-400 mb-2">Clique com o botão direito num ícone fixado para removê-lo.</p>
           <div className="grid grid-cols-5 gap-2">
-            {ICONES_DISPONIVEIS.map(ic => (
-              <button key={ic.value} onClick={() => setIcone(ic.value)}
-                className={`flex flex-col items-center gap-1 p-2.5 rounded-xl border-2 transition-all ${
-                  icone === ic.value ? 'border-amber-400 bg-amber-50 text-amber-700' : 'border-sand-200 text-sand-500 hover:border-sand-300'
-                }`}>
-                {ic.icon}
-                <span className="font-body text-xs">{ic.label}</span>
-              </button>
-            ))}
+            {iconesConsumoFixados.map(value => {
+              const item = getItemBibliotecaConsumo(value)
+              return (
+                <button
+                  key={value}
+                  onClick={() => setIcone(value)}
+                  onContextMenu={e => { e.preventDefault(); e.stopPropagation(); setMenuContexto({ x: e.clientX, y: e.clientY, value }) }}
+                  className={`flex flex-col items-center gap-1 p-2.5 rounded-xl border-2 transition-all ${
+                    icone === value ? 'border-amber-400 bg-amber-50 text-amber-700' : 'border-sand-200 text-sand-500 hover:border-sand-300'
+                  }`}>
+                  {getIconeConsumo(value, 'w-6 h-6')}
+                  <span className="font-body text-xs text-center leading-tight">{item?.label || value}</span>
+                </button>
+              )
+            })}
+            <button onClick={() => setBibliotecaAberta(true)}
+              className="flex flex-col items-center gap-1 p-2.5 rounded-xl border-2 border-dashed border-sand-300 text-sand-400 hover:border-amber-300 hover:text-amber-600 transition-all">
+              <Plus className="w-6 h-6" strokeWidth={1.5} />
+              <span className="font-body text-xs text-center leading-tight">Mais opções</span>
+            </button>
           </div>
         </div>
       </div>
@@ -99,6 +119,23 @@ function FormConsumo({ inicial, onSalvar, onCancelar }: FormConsumoProps) {
           <Check className="w-4 h-4" /> Salvar
         </button>
       </div>
+
+      {bibliotecaAberta && (
+        <ModalBibliotecaConsumo onSelecionar={escolherDaBiblioteca} onFechar={() => setBibliotecaAberta(false)} />
+      )}
+
+      {menuContexto && (
+        <div
+          style={{ position: 'fixed', left: menuContexto.x, top: menuContexto.y, zIndex: 60 }}
+          className="bg-white rounded-xl shadow-card-lg border border-sand-100 py-1 w-40"
+          onClick={e => e.stopPropagation()}
+        >
+          <button onClick={excluirFixado}
+            className="flex items-center gap-2 w-full px-3 py-2 text-sm font-body text-red-600 hover:bg-red-50">
+            <Trash2 className="w-3.5 h-3.5" /> Excluir
+          </button>
+        </div>
+      )}
     </div>
   )
 }

@@ -2,6 +2,7 @@ import {
   Quarto, ItemMobilia, ItemConsumo, MovimentoEstoque,
   Hospede, Usuario, Estadia, ConsumoRegistro, MetaFinanceira, AreaKey
 } from '../types'
+import { ICONES_BASE_CONSUMO } from '../constants/consumoBiblioteca'
 
 const TODAS_AREAS: AreaKey[] = ['dashboard', 'quartos', 'hospedes', 'itens', 'consumo', 'entrada', 'colaboradores', 'mapaHospedes']
 
@@ -26,6 +27,7 @@ export interface MockDB {
   estadias: Estadia[]
   consumoRegistros: ConsumoRegistro[]
   metas: MetaFinanceira[]
+  iconesConsumoFixados: string[]
 }
 
 export function criarSeed(): MockDB {
@@ -170,5 +172,8 @@ export function criarSeed(): MockDB {
     { mes: mesAtual(), valorMeta: 15000 }
   ]
 
-  return { quartos, itensMobilia, itensConsumo, movimentosEstoque, hospedes, usuarios, estadias, consumoRegistros, metas }
+  return {
+    quartos, itensMobilia, itensConsumo, movimentosEstoque, hospedes, usuarios, estadias, consumoRegistros, metas,
+    iconesConsumoFixados: [...ICONES_BASE_CONSUMO]
+  }
 }

@@ -1,5 +1,6 @@
 import { createContext, useContext, useEffect, useState, ReactNode, useCallback } from 'react'
 import { criarSeed, MockDB } from '../data/mockSeed'
+import { ICONES_BASE_CONSUMO } from '../constants/consumoBiblioteca'
 import {
   Quarto, ItemMobilia, ItemConsumo, MovimentoEstoque,
   Hospede, Usuario, Estadia, ConsumoRegistro
@@ -11,10 +12,15 @@ function gerarId(prefixo: string) {
   return `${prefixo}-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 8)}`
 }
 
+// Preenche campos que podem não existir em um DB salvo por uma versão anterior do app.
+function normalizarDb(db: MockDB): MockDB {
+  return { ...db, iconesConsumoFixados: db.iconesConsumoFixados ?? [...ICONES_BASE_CONSUMO] }
+}
+
 function carregarInicial(): MockDB {
   try {
     const raw = localStorage.getItem(STORAGE_KEY)
-    if (raw) return JSON.parse(raw) as MockDB
+    if (raw) return normalizarDb(JSON.parse(raw) as MockDB)
   } catch {
     // dados corrompidos: cai no seed
   }
@@ -54,6 +60,9 @@ interface DataContextType extends MockDB {
   registrarConsumo: (estadiaId: string, quartoId: string, itemConsumoId: string, quantidade: number, precoUnitario: number) => void
   registrarEntradaEstoque: (itemConsumoId: string, quantidade: number, motivo?: string) => void
 
+  adicionarIconeConsumoFixado: (value: string) => void
+  removerIconeConsumoFixado: (value: string) => void
+
   setMetaMes: (mes: string, valorMeta: number) => void
   getMetaMes: (mes: string) => number
 
@@ -86,7 +95,7 @@ export function DataProvider({ children }: { children: ReactNode }) {
     const onStorage = (e: StorageEvent) => {
       if (e.key !== STORAGE_KEY || !e.newValue) return
       try {
-        setDb(JSON.parse(e.newValue) as MockDB)
+        setDb(normalizarDb(JSON.parse(e.newValue) as MockDB))
       } catch {
         // ignora payload inválido
       }
@@ -260,6 +269,16 @@ export function DataProvider({ children }: { children: ReactNode }) {
     }))
   }, [])
 
+  const adicionarIconeConsumoFixado = useCallback((value: string) => {
+    setDb(prev => prev.iconesConsumoFixados.includes(value)
+      ? prev
+      : { ...prev, iconesConsumoFixados: [...prev.iconesConsumoFixados, value] })
+  }, [])
+
+  const removerIconeConsumoFixado = useCallback((value: string) => {
+    setDb(prev => ({ ...prev, iconesConsumoFixados: prev.iconesConsumoFixados.filter(v => v !== value) }))
+  }, [])
+
   // ─── Metas ─────────────────────────────────────────────────
   const setMetaMes = useCallback((mes: string, valorMeta: number) => {
     setDb(prev => {
@@ -341,6 +360,7 @@ export function DataProvider({ children }: { children: ReactNode }) {
       addEstadia, updateEstadia, finalizarEstadia,
       registrarConsumo, registrarEntradaEstoque,
       updateConsumoRegistro, removeConsumoRegistro,
+      adicionarIconeConsumoFixado, removerIconeConsumoFixado,
       setMetaMes, getMetaMes,
       getEstadiaAtivaPorQuarto, getEstadiasPorHospede, getQuartosDisponiveisNoPeriodo,
       getConsumoDaEstadia, getTotalConsumoEstadia, getReceitaMes, getMovimentacoesRecentes,
