@@ -1,27 +1,34 @@
-import { useEffect, useState } from 'react'
-import { ref, onValue, push, update, remove } from 'firebase/database'
-import { db } from '../../services/firebase'
+import { useState } from 'react'
+import { useData } from '../../contexts/DataContext'
 import { ItemMobilia, TipoItem } from '../../types'
 import { useAuth } from '../../contexts/AuthContext'
 import {
-  Plus, Package, BedDouble, Tv, Refrigerator, AirVent,
+  Plus, Package, BedDouble, Tv, Refrigerator, AirVent, Microwave, Fan, ShowerHead, Bath,
   Sofa, Edit2, Trash2, X, Check
 } from 'lucide-react'
 
 const TIPOS: { value: TipoItem; label: string; icon: React.ReactNode }[] = [
-  { value: 'cama',            label: 'Cama',           icon: <BedDouble className="w-6 h-6" strokeWidth={1.5} /> },
-  { value: 'guarda-roupa',    label: 'Guarda-roupa',   icon: <Sofa className="w-6 h-6" strokeWidth={1.5} /> },
-  { value: 'televisao',       label: 'Televisão',      icon: <Tv className="w-6 h-6" strokeWidth={1.5} /> },
-  { value: 'frigobar',        label: 'Frigobar',       icon: <Refrigerator className="w-6 h-6" strokeWidth={1.5} /> },
-  { value: 'ar-condicionado', label: 'Ar-condicionado',icon: <AirVent className="w-6 h-6" strokeWidth={1.5} /> },
+  { value: 'cama',                    label: 'Cama',                      icon: <BedDouble className="w-6 h-6" strokeWidth={1.5} /> },
+  { value: 'guarda-roupa',            label: 'Guarda-roupa',              icon: <Sofa className="w-6 h-6" strokeWidth={1.5} /> },
+  { value: 'televisao',               label: 'Televisão',                 icon: <Tv className="w-6 h-6" strokeWidth={1.5} /> },
+  { value: 'frigobar',                label: 'Frigobar',                  icon: <Refrigerator className="w-6 h-6" strokeWidth={1.5} /> },
+  { value: 'ar-condicionado',         label: 'Ar-condicionado',           icon: <AirVent className="w-6 h-6" strokeWidth={1.5} /> },
+  { value: 'microondas',              label: 'Micro-ondas',               icon: <Microwave className="w-6 h-6" strokeWidth={1.5} /> },
+  { value: 'ventilador-teto',         label: 'Ventilador de teto',        icon: <Fan className="w-6 h-6" strokeWidth={1.5} /> },
+  { value: 'banheiro-agua-quente',    label: 'Banheiro c/ água quente',   icon: <ShowerHead className="w-6 h-6" strokeWidth={1.5} /> },
+  { value: 'banheiro-sem-agua-quente', label: 'Banheiro s/ água quente',  icon: <Bath className="w-6 h-6" strokeWidth={1.5} /> },
 ]
 
 const ICONE_POR_TIPO: Record<TipoItem, React.ReactNode> = {
-  'cama':            <BedDouble className="w-10 h-10" strokeWidth={1.2} />,
-  'guarda-roupa':    <Sofa className="w-10 h-10" strokeWidth={1.2} />,
-  'televisao':       <Tv className="w-10 h-10" strokeWidth={1.2} />,
-  'frigobar':        <Refrigerator className="w-10 h-10" strokeWidth={1.2} />,
-  'ar-condicionado': <AirVent className="w-10 h-10" strokeWidth={1.2} />,
+  'cama':                    <BedDouble className="w-10 h-10" strokeWidth={1.2} />,
+  'guarda-roupa':            <Sofa className="w-10 h-10" strokeWidth={1.2} />,
+  'televisao':               <Tv className="w-10 h-10" strokeWidth={1.2} />,
+  'frigobar':                <Refrigerator className="w-10 h-10" strokeWidth={1.2} />,
+  'ar-condicionado':         <AirVent className="w-10 h-10" strokeWidth={1.2} />,
+  'microondas':              <Microwave className="w-10 h-10" strokeWidth={1.2} />,
+  'ventilador-teto':         <Fan className="w-10 h-10" strokeWidth={1.2} />,
+  'banheiro-agua-quente':    <ShowerHead className="w-10 h-10" strokeWidth={1.2} />,
+  'banheiro-sem-agua-quente': <Bath className="w-10 h-10" strokeWidth={1.2} />,
 }
 
 interface FormItemProps {
@@ -45,7 +52,7 @@ function FormItem({ inicial, onSalvar, onCancelar }: FormItemProps) {
       {/* Seleção de tipo */}
       <div className="mb-4">
         <label className="block font-body text-xs font-medium text-brand-700 uppercase tracking-wider mb-2">Tipo</label>
-        <div className="grid grid-cols-5 gap-2">
+        <div className="grid grid-cols-3 sm:grid-cols-5 gap-2">
           {TIPOS.map(t => (
             <button key={t.value} onClick={() => { setTipo(t.value); setNome(t.label) }}
               className={`flex flex-col items-center gap-1.5 p-3 rounded-xl border-2 transition-all ${
@@ -84,35 +91,25 @@ function FormItem({ inicial, onSalvar, onCancelar }: FormItemProps) {
 }
 
 export default function ItensPage() {
-  const [itens, setItens] = useState<ItemMobilia[]>([])
+  const { itensMobilia: itens, addItemMobilia, updateItemMobilia, removeItemMobilia } = useData()
   const [formAberto, setFormAberto] = useState(false)
   const [editando, setEditando] = useState<ItemMobilia | null>(null)
-  const [carregando, setCarregando] = useState(true)
   const { isAuthorized } = useAuth()
-  const podeEditar = isAuthorized('adm')
+  const podeEditar = isAuthorized('itens')
 
-  useEffect(() => {
-    return onValue(ref(db, 'itens'), snap => {
-      const data: ItemMobilia[] = []
-      snap.forEach(child => data.push({ id: child.key!, ...child.val() }))
-      setItens(data)
-      setCarregando(false)
-    })
-  }, [])
-
-  const salvar = async (dados: Omit<ItemMobilia, 'id' | 'createdAt' | 'icone'>) => {
-    const payload = { ...dados, icone: dados.tipo, createdAt: Date.now() }
+  const salvar = (dados: Omit<ItemMobilia, 'id' | 'createdAt' | 'icone'>) => {
+    const payload = { ...dados, icone: dados.tipo }
     if (editando) {
-      await update(ref(db, `itens/${editando.id}`), payload)
+      updateItemMobilia(editando.id, payload)
       setEditando(null)
     } else {
-      await push(ref(db, 'itens'), payload)
+      addItemMobilia(payload)
       setFormAberto(false)
     }
   }
 
-  const excluir = async (id: string) => {
-    if (confirm('Excluir este item?')) await remove(ref(db, `itens/${id}`))
+  const excluir = (id: string) => {
+    if (confirm('Excluir este item?')) removeItemMobilia(id)
   }
 
   // Agrupar por tipo
@@ -144,11 +141,7 @@ export default function ItensPage() {
         <FormItem inicial={editando} onSalvar={salvar} onCancelar={() => setEditando(null)} />
       )}
 
-      {carregando ? (
-        <div className="grid grid-cols-3 sm:grid-cols-4 lg:grid-cols-6 gap-4">
-          {[...Array(6)].map((_, i) => <div key={i} className="bg-white rounded-2xl h-28 animate-pulse border border-sand-100" />)}
-        </div>
-      ) : itens.length === 0 ? (
+      {itens.length === 0 ? (
         <div className="flex flex-col items-center justify-center py-16 text-center">
           <Package className="w-12 h-12 text-sand-300 mb-3" strokeWidth={1} />
           <p className="font-body font-semibold text-brand-900">Nenhum item cadastrado</p>

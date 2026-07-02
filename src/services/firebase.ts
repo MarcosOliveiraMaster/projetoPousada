@@ -1,5 +1,5 @@
-import { initializeApp } from 'firebase/app'
-import { getAuth } from 'firebase/auth'
+import { initializeApp, deleteApp } from 'firebase/app'
+import { getAuth, createUserWithEmailAndPassword, signOut } from 'firebase/auth'
 import { getDatabase } from 'firebase/database'
 
 const firebaseConfig = {
@@ -17,3 +17,19 @@ const app = initializeApp(firebaseConfig)
 export const auth = getAuth(app)
 export const db = getDatabase(app)
 export default app
+
+// Cria a conta de login de um colaborador sem trocar a sessão atual (admin
+// logado). O SDK do client troca automaticamente a sessão ativa para o
+// usuário recém-criado, então isso é feito num app Firebase secundário e
+// descartável, mantendo a sessão principal intacta.
+export async function criarContaColaborador(email: string, senha: string): Promise<string> {
+  const appSecundario = initializeApp(firebaseConfig, `secundario-${Date.now()}`)
+  const authSecundario = getAuth(appSecundario)
+  try {
+    const cred = await createUserWithEmailAndPassword(authSecundario, email, senha)
+    return cred.user.uid
+  } finally {
+    await signOut(authSecundario).catch(() => {})
+    await deleteApp(appSecundario).catch(() => {})
+  }
+}

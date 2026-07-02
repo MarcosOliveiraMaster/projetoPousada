@@ -1,20 +1,23 @@
-import { useState } from 'react'
+import { useState, FormEvent } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { useAuth } from '../../contexts/AuthContext'
 import { Leaf } from 'lucide-react'
 import { FirebaseError } from 'firebase/app'
 
 export default function LoginPage() {
+  const [email, setEmail] = useState('')
+  const [senha, setSenha] = useState('')
   const [erro, setErro] = useState('')
   const [carregando, setCarregando] = useState(false)
   const { login } = useAuth()
   const navigate = useNavigate()
 
-  const handleEntrar = async () => {
+  const handleEntrar = async (e: FormEvent) => {
+    e.preventDefault()
     setErro('')
     setCarregando(true)
     try {
-      await login('userMaster', '@userMaster2026')
+      await login(email.trim(), senha)
       navigate('/dashboard')
     } catch (err: unknown) {
       if (err instanceof FirebaseError) {
@@ -24,6 +27,11 @@ export default function LoginPage() {
             break
           case 'auth/operation-not-allowed':
             setErro('Autenticação não habilitada no Firebase.')
+            break
+          case 'auth/user-not-found':
+          case 'auth/invalid-credential':
+          case 'auth/wrong-password':
+            setErro('Email ou senha incorretos.')
             break
           default:
             setErro(`Erro ao entrar (${err.code})`)
@@ -64,7 +72,7 @@ export default function LoginPage() {
         </div>
 
         {/* Card */}
-        <div className="bg-white rounded-3xl shadow-card-lg border border-sand-100 p-8 flex flex-col items-center gap-5">
+        <form onSubmit={handleEntrar} className="bg-white rounded-3xl shadow-card-lg border border-sand-100 p-8 flex flex-col gap-4">
 
           {erro && (
             <div className="w-full flex items-center gap-2 bg-red-50 border border-red-100 rounded-xl px-4 py-3">
@@ -73,11 +81,39 @@ export default function LoginPage() {
             </div>
           )}
 
+          <div className="flex flex-col gap-1.5">
+            <label htmlFor="email" className="font-body text-sand-600 text-xs font-medium">Email</label>
+            <input
+              id="email"
+              type="email"
+              autoComplete="username"
+              required
+              value={email}
+              onChange={(e) => setEmail(e.target.value)}
+              className="w-full px-4 py-3 rounded-xl border border-sand-200 bg-sand-50 font-body text-sm text-brand-900 focus:outline-none focus:ring-2 focus:ring-brand-500 focus:border-transparent"
+              placeholder="seuemail@pousada.com"
+            />
+          </div>
+
+          <div className="flex flex-col gap-1.5">
+            <label htmlFor="senha" className="font-body text-sand-600 text-xs font-medium">Senha</label>
+            <input
+              id="senha"
+              type="password"
+              autoComplete="current-password"
+              required
+              value={senha}
+              onChange={(e) => setSenha(e.target.value)}
+              className="w-full px-4 py-3 rounded-xl border border-sand-200 bg-sand-50 font-body text-sm text-brand-900 focus:outline-none focus:ring-2 focus:ring-brand-500 focus:border-transparent"
+              placeholder="••••••••"
+            />
+          </div>
+
           <button
-            onClick={handleEntrar}
+            type="submit"
             disabled={carregando}
             className="
-              w-full py-3.5 rounded-xl
+              w-full py-3.5 rounded-xl mt-2
               bg-brand-700 hover:bg-brand-600 active:bg-brand-800
               text-white font-body font-medium text-sm
               shadow-card-md hover:shadow-card-lg
@@ -96,7 +132,7 @@ export default function LoginPage() {
               </>
             ) : 'Entrar'}
           </button>
-        </div>
+        </form>
 
         <p className="text-center font-body text-sand-400 text-xs mt-6">
           © {new Date().getFullYear()} Pousada Manager · Versão 1.0

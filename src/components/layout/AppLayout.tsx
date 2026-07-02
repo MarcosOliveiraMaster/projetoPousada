@@ -1,25 +1,28 @@
 import { useState, ReactNode } from 'react'
 import { NavLink, useNavigate } from 'react-router-dom'
 import { useAuth } from '../../contexts/AuthContext'
+import { AreaKey } from '../../types'
 import {
   LayoutDashboard, BedDouble, Package, Users, ShoppingBasket,
-  LogOut, Menu, X, Leaf, ChevronRight, UserCircle
+  LogOut, Menu, X, Leaf, ChevronRight, UserCircle, LogIn
 } from 'lucide-react'
 
 interface NavItem {
   to: string
   icon: ReactNode
   label: string
-  nivelMinimo?: 'master' | 'adm' | 'simples'
+  area: AreaKey
+  somenteAdmin?: boolean
 }
 
 const NAV_ITEMS: NavItem[] = [
-  { to: '/dashboard',     icon: <LayoutDashboard className="w-5 h-5" />,  label: 'Dashboard' },
-  { to: '/quartos',       icon: <BedDouble className="w-5 h-5" />,        label: 'Quartos' },
-  { to: '/hospedes',      icon: <Users className="w-5 h-5" />,            label: 'Hóspedes' },
-  { to: '/itens',         icon: <Package className="w-5 h-5" />,          label: 'Itens' },
-  { to: '/consumo',       icon: <ShoppingBasket className="w-5 h-5" />,   label: 'Consumo' },
-  { to: '/colaboradores', icon: <UserCircle className="w-5 h-5" />,       label: 'Colaboradores', nivelMinimo: 'adm' },
+  { to: '/dashboard',     icon: <LayoutDashboard className="w-5 h-5" />,  label: 'Dashboard',     area: 'dashboard' },
+  { to: '/quartos',       icon: <BedDouble className="w-5 h-5" />,        label: 'Quartos',       area: 'quartos' },
+  { to: '/hospedes',      icon: <Users className="w-5 h-5" />,            label: 'Hóspedes',      area: 'hospedes' },
+  { to: '/entrada',       icon: <LogIn className="w-5 h-5" />,            label: 'Entrada',       area: 'entrada' },
+  { to: '/itens',         icon: <Package className="w-5 h-5" />,          label: 'Itens',         area: 'itens' },
+  { to: '/consumo',       icon: <ShoppingBasket className="w-5 h-5" />,   label: 'Consumo',       area: 'consumo' },
+  { to: '/colaboradores', icon: <UserCircle className="w-5 h-5" />,       label: 'Colaboradores', area: 'colaboradores', somenteAdmin: true },
 ]
 
 interface LayoutProps {
@@ -34,18 +37,6 @@ export default function AppLayout({ children }: LayoutProps) {
   const handleLogout = async () => {
     await logout()
     navigate('/login')
-  }
-
-  const nivelLabel: Record<string, string> = {
-    master: 'Master',
-    adm: 'Administrador',
-    simples: 'Colaborador'
-  }
-
-  const nivelColor: Record<string, string> = {
-    master: 'bg-brand-100 text-brand-700',
-    adm: 'bg-blue-50 text-blue-700',
-    simples: 'bg-sand-100 text-sand-700'
   }
 
   const SidebarContent = () => (
@@ -64,7 +55,7 @@ export default function AppLayout({ children }: LayoutProps) {
       {/* Nav */}
       <nav className="flex-1 px-3 py-4 space-y-0.5 overflow-y-auto">
         {NAV_ITEMS.filter(item =>
-          !item.nivelMinimo || isAuthorized(item.nivelMinimo)
+          isAuthorized(item.area) && (!item.somenteAdmin || usuario?.admin)
         ).map(item => (
           <NavLink
             key={item.to}
@@ -101,8 +92,10 @@ export default function AppLayout({ children }: LayoutProps) {
           </div>
           <div className="flex-1 min-w-0">
             <p className="font-body font-medium text-brand-900 text-sm truncate">{usuario?.nome}</p>
-            <span className={`inline-block font-body text-xs px-1.5 py-0.5 rounded-md font-medium ${nivelColor[usuario?.nivel || 'simples']}`}>
-              {nivelLabel[usuario?.nivel || 'simples']}
+            <span className={`inline-block font-body text-xs px-1.5 py-0.5 rounded-md font-medium ${
+              usuario?.admin ? 'bg-brand-100 text-brand-700' : 'bg-sand-100 text-sand-700'
+            }`}>
+              {usuario?.admin ? 'Administrador' : 'Colaborador'}
             </span>
           </div>
           <button

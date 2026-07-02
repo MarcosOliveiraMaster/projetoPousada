@@ -1,11 +1,12 @@
 import { useState, useRef } from 'react'
-import { ref, update } from 'firebase/database'
-import { db } from '../../services/firebase'
-import { Quarto, StatusQuarto, ItemMobilia, ItemConsumo } from '../../types'
+import { useData } from '../../contexts/DataContext'
+import { Quarto, StatusQuarto, ItemMobilia } from '../../types'
 import { useAuth } from '../../contexts/AuthContext'
+import { formatarData } from '../../utils/format'
+import RegistrarConsumoForm from '../shared/RegistrarConsumoForm'
 import {
-  ArrowLeft, BedDouble, Tv, Refrigerator, AirVent,
-  ShoppingBasket, Package, Sofa, CheckCircle2
+  ArrowLeft, BedDouble, Tv, Refrigerator, AirVent, Microwave, Fan, ShowerHead, Bath,
+  Package, Sofa, CheckCircle2, RotateCw, CalendarCheck, CalendarX, UserCircle
 } from 'lucide-react'
 
 const STATUS_CONFIG: Record<StatusQuarto, { label: string; color: string }> = {
@@ -16,49 +17,47 @@ const STATUS_CONFIG: Record<StatusQuarto, { label: string; color: string }> = {
 }
 
 const TIPO_ICONE: Record<string, React.ReactNode> = {
-  'cama':          <BedDouble className="w-8 h-8" strokeWidth={1.5} />,
-  'guarda-roupa':  <Sofa className="w-8 h-8" strokeWidth={1.5} />,
-  'televisao':     <Tv className="w-8 h-8" strokeWidth={1.5} />,
-  'frigobar':      <Refrigerator className="w-8 h-8" strokeWidth={1.5} />,
-  'ar-condicionado': <AirVent className="w-8 h-8" strokeWidth={1.5} />,
-}
-
-interface ItemDraggable {
-  id: string
-  label: string
-  tipo: string
-  x: number
-  y: number
+  'cama':                    <BedDouble className="w-8 h-8" strokeWidth={1.5} />,
+  'guarda-roupa':            <Sofa className="w-8 h-8" strokeWidth={1.5} />,
+  'televisao':               <Tv className="w-8 h-8" strokeWidth={1.5} />,
+  'frigobar':                <Refrigerator className="w-8 h-8" strokeWidth={1.5} />,
+  'ar-condicionado':         <AirVent className="w-8 h-8" strokeWidth={1.5} />,
+  'microondas':              <Microwave className="w-8 h-8" strokeWidth={1.5} />,
+  'ventilador-teto':         <Fan className="w-8 h-8" strokeWidth={1.5} />,
+  'banheiro-agua-quente':    <ShowerHead className="w-8 h-8" strokeWidth={1.5} />,
+  'banheiro-sem-agua-quente': <Bath className="w-8 h-8" strokeWidth={1.5} />,
 }
 
 interface Props {
   quarto: Quarto
   itensMobilia: ItemMobilia[]
-  itensConsumo: ItemConsumo[]
   onVoltar: () => void
 }
 
-export default function QuartoDetalhe({ quarto, itensMobilia, itensConsumo, onVoltar }: Props) {
+export default function QuartoDetalhe({ quarto, itensMobilia, onVoltar }: Props) {
+  const { itensConsumo, updateQuarto, getEstadiaAtivaPorQuarto, hospedes } = useData()
   const { isAuthorized } = useAuth()
-  const podeEditar = isAuthorized('adm')
+  const podeEditar = isAuthorized('quartos')
   const canvasRef = useRef<HTMLDivElement>(null)
 
-  const itensDoCquarto = itensMobilia.filter(i => (quarto.itensMobilia || []).includes(i.id))
-  const consumoDoCquarto = itensConsumo.filter(i => (quarto.itensConsumo || []).includes(i.id))
+  const itensDoQuarto = itensMobilia.filter(i => (quarto.itensMobilia || []).includes(i.id))
+  const consumoDoQuarto = itensConsumo.filter(i => (quarto.itensConsumo || []).includes(i.id))
+  const temFrigobar = itensDoQuarto.some(i => i.tipo === 'frigobar')
+  const estadiaAtiva = getEstadiaAtivaPorQuarto(quarto.id)
+  const hospedeAtivo = estadiaAtiva ? hospedes.find(h => h.id === estadiaAtiva.hospedeId) : undefined
 
-  // Posições salvas
-  const [posicoes, setPosicoes] = useState<Record<string, { x: number; y: number }>>(
-    quarto.posicoes || {}
-  )
+  // Posições salvas (mantidas em estado local para o drag ficar fluido; persistidas no DataContext)
+  const [posicoes, setPosicoes] = useState<Quarto['posicoes']>(quarto.posicoes || {})
 
-  // Drag state
   const draggingRef = useRef<{ id: string; offsetX: number; offsetY: number } | null>(null)
+
+  const posOf = (id: string) => posicoes[id] || { itemId: id, x: 20, y: 20, rotacao: 0 }
 
   const onMouseDown = (e: React.MouseEvent, id: string) => {
     if (!podeEditar) return
     const rect = canvasRef.current?.getBoundingClientRect()
     if (!rect) return
-    const pos = posicoes[id] || { x: 20, y: 20 }
+    const pos = posOf(id)
     draggingRef.current = {
       id,
       offsetX: e.clientX - rect.left - pos.x,
@@ -74,28 +73,35 @@ export default function QuartoDetalhe({ quarto, itensMobilia, itensConsumo, onVo
     const { id, offsetX, offsetY } = draggingRef.current
     const x = Math.max(0, Math.min(e.clientX - rect.left - offsetX, rect.width - 72))
     const y = Math.max(0, Math.min(e.clientY - rect.top - offsetY, rect.height - 72))
-    setPosicoes(prev => ({ ...prev, [id]: { x, y } }))
+    setPosicoes(prev => ({ ...prev, [id]: { ...posOf(id), x, y } }))
   }
 
-  const onMouseUp = async () => {
+  const onMouseUp = () => {
     if (!draggingRef.current) return
     const id = draggingRef.current.id
     draggingRef.current = null
-    await update(ref(db, `quartos/${quarto.id}/posicoes`), { [id]: posicoes[id] })
+    updateQuarto(quarto.id, { posicoes: { ...quarto.posicoes, [id]: posOf(id) } })
   }
 
-  const adicionarItem = async (itemId: string) => {
+  const rotacionar = (id: string) => {
+    const atual = posOf(id)
+    const nova = { ...atual, rotacao: ((atual.rotacao || 0) + 90) % 360 }
+    setPosicoes(prev => ({ ...prev, [id]: nova }))
+    updateQuarto(quarto.id, { posicoes: { ...quarto.posicoes, [id]: nova } })
+  }
+
+  const adicionarItem = (itemId: string) => {
     const lista = [...(quarto.itensMobilia || []), itemId]
-    await update(ref(db, `quartos/${quarto.id}`), { itensMobilia: lista })
+    updateQuarto(quarto.id, { itensMobilia: lista })
   }
 
-  const adicionarConsumo = async (itemId: string) => {
+  const adicionarConsumo = (itemId: string) => {
     const lista = [...(quarto.itensConsumo || []), itemId]
-    await update(ref(db, `quartos/${quarto.id}`), { itensConsumo: lista })
+    updateQuarto(quarto.id, { itensConsumo: lista })
   }
 
-  const mudarStatus = async (status: StatusQuarto) => {
-    await update(ref(db, `quartos/${quarto.id}`), { status })
+  const mudarStatus = (status: StatusQuarto) => {
+    updateQuarto(quarto.id, { status })
   }
 
   const disponiveisParaAdicionar = itensMobilia.filter(i => !(quarto.itensMobilia || []).includes(i.id))
@@ -118,15 +124,30 @@ export default function QuartoDetalhe({ quarto, itensMobilia, itensConsumo, onVo
         </div>
       </div>
 
+      {/* Estadia ativa */}
+      {estadiaAtiva && (
+        <div className="bg-white rounded-2xl shadow-card border border-sand-100 p-4 flex flex-wrap items-center gap-x-6 gap-y-2">
+          <span className="flex items-center gap-2 font-body text-sm font-medium text-brand-900">
+            <UserCircle className="w-4 h-4 text-brand-500" /> {hospedeAtivo?.nome || 'Hóspede'}
+          </span>
+          <span className="flex items-center gap-1.5 font-body text-xs text-sand-500">
+            <CalendarCheck className="w-3.5 h-3.5" /> {formatarData(estadiaAtiva.dataEntrada)}
+          </span>
+          <span className="flex items-center gap-1.5 font-body text-xs text-sand-500">
+            <CalendarX className="w-3.5 h-3.5" /> {formatarData(estadiaAtiva.dataSaida)}
+          </span>
+        </div>
+      )}
+
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
 
         {/* Canvas drag-and-drop */}
-        <div className="lg:col-span-2">
+        <div className="lg:col-span-2 space-y-6">
           <div className="bg-white rounded-2xl shadow-card border border-sand-100 overflow-hidden">
             <div className="px-4 py-3 border-b border-sand-100 flex items-center gap-2">
               <Package className="w-4 h-4 text-brand-500" />
               <span className="font-body font-medium text-brand-900 text-sm">Planta do quarto</span>
-              {podeEditar && <span className="font-body text-xs text-sand-400 ml-auto">Arraste os itens</span>}
+              {podeEditar && <span className="font-body text-xs text-sand-400 ml-auto">Arraste e gire os itens</span>}
             </div>
             <div
               ref={canvasRef}
@@ -140,29 +161,56 @@ export default function QuartoDetalhe({ quarto, itensMobilia, itensConsumo, onVo
               onMouseUp={onMouseUp}
               onMouseLeave={onMouseUp}
             >
-              {itensDoCquarto.length === 0 ? (
+              {itensDoQuarto.length === 0 ? (
                 <div className="absolute inset-0 flex flex-col items-center justify-center text-center p-4">
                   <BedDouble className="w-12 h-12 text-sand-300 mb-2" strokeWidth={1} />
                   <p className="font-body text-sand-400 text-sm">Adicione itens para visualizá-los aqui</p>
                 </div>
               ) : (
-                itensDoCquarto.map((item) => {
-                  const pos = posicoes[item.id] || { x: 20, y: 20 }
+                itensDoQuarto.map((item) => {
+                  const pos = posOf(item.id)
                   return (
                     <div
                       key={item.id}
-                      onMouseDown={e => onMouseDown(e, item.id)}
                       style={{ left: pos.x, top: pos.y, position: 'absolute' }}
-                      className={`flex flex-col items-center gap-1 p-2 rounded-xl bg-white shadow-card border border-sand-200 w-[72px] select-none ${podeEditar ? 'cursor-grab active:cursor-grabbing hover:border-brand-300 hover:shadow-card-md' : ''} transition-shadow`}
+                      className="flex flex-col items-center gap-1 w-[72px] select-none group"
                     >
-                      <span className="text-brand-600">{TIPO_ICONE[item.tipo] || <Package className="w-8 h-8" />}</span>
-                      <span className="font-body text-xs text-sand-600 text-center leading-tight truncate w-full text-center">{item.nome}</span>
+                      <div
+                        onMouseDown={e => onMouseDown(e, item.id)}
+                        className={`flex flex-col items-center gap-1 p-2 rounded-xl bg-white shadow-card border border-sand-200 w-full ${podeEditar ? 'cursor-grab active:cursor-grabbing hover:border-brand-300 hover:shadow-card-md' : ''} transition-shadow`}
+                      >
+                        <span className="text-brand-600 transition-transform" style={{ transform: `rotate(${pos.rotacao || 0}deg)` }}>
+                          {TIPO_ICONE[item.tipo] || <Package className="w-8 h-8" />}
+                        </span>
+                        <span className="font-body text-xs text-sand-600 text-center leading-tight truncate w-full">{item.nome}</span>
+                      </div>
+                      {podeEditar && (
+                        <button
+                          onClick={() => rotacionar(item.id)}
+                          title="Girar item"
+                          className="opacity-0 group-hover:opacity-100 p-1 bg-white rounded-lg shadow-card border border-sand-200 text-sand-500 hover:text-brand-700 transition-opacity"
+                        >
+                          <RotateCw className="w-3 h-3" />
+                        </button>
+                      )}
                     </div>
                   )
                 })
               )}
             </div>
           </div>
+
+          {/* Controle de consumo (quartos com frigobar) */}
+          {temFrigobar && (
+            estadiaAtiva ? (
+              <RegistrarConsumoForm estadiaId={estadiaAtiva.id} quartoId={quarto.id} />
+            ) : (
+              <div className="bg-white rounded-2xl shadow-card border border-sand-100 p-4">
+                <p className="font-body font-medium text-brand-900 text-sm mb-1">Controle de consumo</p>
+                <p className="font-body text-sand-400 text-sm">Sem hóspede ativo neste quarto no momento.</p>
+              </div>
+            )
+          )}
         </div>
 
         {/* Painel direito */}
@@ -206,17 +254,17 @@ export default function QuartoDetalhe({ quarto, itensMobilia, itensConsumo, onVo
             </div>
           )}
 
-          {/* Adicionar consumo */}
-          {isAuthorized('simples') && consumoParaAdicionar.length > 0 && (
+          {/* Vincular item de consumo ao quarto */}
+          {podeEditar && consumoParaAdicionar.length > 0 && (
             <div className="bg-white rounded-2xl shadow-card border border-sand-100 p-4">
               <p className="font-body font-medium text-brand-900 text-sm mb-3 flex items-center gap-2">
-                <ShoppingBasket className="w-4 h-4 text-amber-500" /> Adicionar consumo
+                <Refrigerator className="w-4 h-4 text-amber-500" /> Vincular item de consumo
               </p>
               <div className="space-y-1.5">
                 {consumoParaAdicionar.map(item => (
                   <button key={item.id} onClick={() => adicionarConsumo(item.id)}
                     className="flex items-center gap-2 w-full px-3 py-2 rounded-xl hover:bg-amber-50 border border-sand-100 transition-colors text-left">
-                    <ShoppingBasket className="w-5 h-5 text-amber-500" />
+                    <Refrigerator className="w-5 h-5 text-amber-500" />
                     <span className="font-body text-sm text-brand-800">{item.nome}</span>
                     <span className="ml-auto font-mono text-xs text-sand-400">{item.qtdAtual} un</span>
                   </button>
@@ -225,14 +273,14 @@ export default function QuartoDetalhe({ quarto, itensMobilia, itensConsumo, onVo
             </div>
           )}
 
-          {/* Consumo atual */}
-          {consumoDoCquarto.length > 0 && (
+          {/* Itens de consumo vinculados */}
+          {consumoDoQuarto.length > 0 && (
             <div className="bg-white rounded-2xl shadow-card border border-sand-100 p-4">
-              <p className="font-body font-medium text-brand-900 text-sm mb-3">Consumo no quarto</p>
+              <p className="font-body font-medium text-brand-900 text-sm mb-3">Itens de consumo do quarto</p>
               <div className="space-y-1.5">
-                {consumoDoCquarto.map(item => (
+                {consumoDoQuarto.map(item => (
                   <div key={item.id} className="flex items-center gap-2 px-3 py-2 rounded-xl bg-amber-50">
-                    <ShoppingBasket className="w-4 h-4 text-amber-500" />
+                    <Refrigerator className="w-4 h-4 text-amber-500" />
                     <span className="font-body text-sm text-brand-800 flex-1">{item.nome}</span>
                     <span className="font-mono text-xs font-medium text-amber-700">{item.qtdAtual} un</span>
                   </div>

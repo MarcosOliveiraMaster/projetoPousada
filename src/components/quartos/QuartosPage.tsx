@@ -1,6 +1,5 @@
-import { useEffect, useState } from 'react'
-import { ref, onValue, push, update, remove } from 'firebase/database'
-import { db } from '../../services/firebase'
+import { useState } from 'react'
+import { useData } from '../../contexts/DataContext'
 import { Quarto, StatusQuarto, ItemMobilia, ItemConsumo } from '../../types'
 import { useAuth } from '../../contexts/AuthContext'
 import {
@@ -22,9 +21,12 @@ interface QuartoCardProps {
   itensConsumo: ItemConsumo[]
   onSelect: (q: Quarto) => void
   podeEditar: boolean
+  onRenomear: (id: string, nome: string) => void
+  onExcluir: (id: string) => void
+  onMudarStatus: (id: string, status: StatusQuarto) => void
 }
 
-function QuartoCard({ quarto, itensMobilia, itensConsumo, onSelect, podeEditar }: QuartoCardProps) {
+function QuartoCard({ quarto, itensMobilia, itensConsumo, onSelect, podeEditar, onRenomear, onExcluir, onMudarStatus }: QuartoCardProps) {
   const [menuOpen, setMenuOpen] = useState(false)
   const [editandoNome, setEditandoNome] = useState(false)
   const [novoNome, setNovoNome] = useState(quarto.nome)
@@ -33,22 +35,18 @@ function QuartoCard({ quarto, itensMobilia, itensConsumo, onSelect, podeEditar }
   const qtdMobilia = (quarto.itensMobilia || []).length
   const qtdConsumo = (quarto.itensConsumo || []).length
 
-  const salvarNome = async () => {
-    if (novoNome.trim()) {
-      await update(ref(db, `quartos/${quarto.id}`), { nome: novoNome.trim() })
-    }
+  const salvarNome = () => {
+    if (novoNome.trim()) onRenomear(quarto.id, novoNome.trim())
     setEditandoNome(false)
   }
 
-  const excluirQuarto = async () => {
-    if (confirm(`Excluir o quarto "${quarto.nome}"?`)) {
-      await remove(ref(db, `quartos/${quarto.id}`))
-    }
+  const excluirQuarto = () => {
+    if (confirm(`Excluir o quarto "${quarto.nome}"?`)) onExcluir(quarto.id)
     setMenuOpen(false)
   }
 
-  const mudarStatus = async (status: StatusQuarto) => {
-    await update(ref(db, `quartos/${quarto.id}`), { status })
+  const mudarStatus = (status: StatusQuarto) => {
+    onMudarStatus(quarto.id, status)
     setMenuOpen(false)
   }
 
@@ -145,53 +143,30 @@ function QuartoCard({ quarto, itensMobilia, itensConsumo, onSelect, podeEditar }
 }
 
 export default function QuartosPage() {
-  const [quartos, setQuartos] = useState<Quarto[]>([])
-  const [itensMobilia, setItensMobilia] = useState<ItemMobilia[]>([])
-  const [itensConsumo, setItensConsumo] = useState<ItemConsumo[]>([])
-  const [quartoSelecionado, setQuartoSelecionado] = useState<Quarto | null>(null)
-  const [carregando, setCarregando] = useState(true)
+  const { quartos, itensMobilia, itensConsumo, addQuarto, updateQuarto, removeQuarto } = useData()
+  const [quartoSelecionadoId, setQuartoSelecionadoId] = useState<string | null>(null)
   const { isAuthorized } = useAuth()
-  const podeEditar = isAuthorized('adm')
+  const podeEditar = isAuthorized('quartos')
 
-  useEffect(() => {
-    const unsubQ = onValue(ref(db, 'quartos'), snap => {
-      const data: Quarto[] = []
-      snap.forEach(child => data.push({ id: child.key!, ...child.val() }))
-      setQuartos(data)
-      setCarregando(false)
-    })
-    const unsubI = onValue(ref(db, 'itens'), snap => {
-      const data: ItemMobilia[] = []
-      snap.forEach(child => data.push({ id: child.key!, ...child.val() }))
-      setItensMobilia(data)
-    })
-    const unsubC = onValue(ref(db, 'consumo'), snap => {
-      const data: ItemConsumo[] = []
-      snap.forEach(child => data.push({ id: child.key!, ...child.val() }))
-      setItensConsumo(data)
-    })
-    return () => { unsubQ(); unsubI(); unsubC() }
-  }, [])
-
-  const novoQuarto = async () => {
+  const novoQuarto = () => {
     const num = quartos.length + 1
-    await push(ref(db, 'quartos'), {
+    addQuarto({
       nome: `Quarto ${num}`,
       status: 'disponivel',
       itensMobilia: [],
       itensConsumo: [],
-      posicoes: {},
-      createdAt: Date.now()
+      posicoes: {}
     })
   }
+
+  const quartoSelecionado = quartos.find(q => q.id === quartoSelecionadoId) || null
 
   if (quartoSelecionado) {
     return (
       <QuartoDetalhe
         quarto={quartoSelecionado}
         itensMobilia={itensMobilia}
-        itensConsumo={itensConsumo}
-        onVoltar={() => setQuartoSelecionado(null)}
+        onVoltar={() => setQuartoSelecionadoId(null)}
       />
     )
   }
@@ -217,13 +192,7 @@ export default function QuartosPage() {
       </div>
 
       {/* Cards */}
-      {carregando ? (
-        <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-4">
-          {[...Array(4)].map((_, i) => (
-            <div key={i} className="bg-white rounded-2xl h-56 animate-pulse border border-sand-100" />
-          ))}
-        </div>
-      ) : quartos.length === 0 ? (
+      {quartos.length === 0 ? (
         <div className="flex flex-col items-center justify-center py-20 text-center">
           <BedDouble className="w-16 h-16 text-sand-300 mb-4" strokeWidth={1} />
           <h3 className="font-body font-semibold text-brand-900 mb-1">Nenhum quarto cadastrado</h3>
@@ -243,8 +212,11 @@ export default function QuartosPage() {
               quarto={q}
               itensMobilia={itensMobilia}
               itensConsumo={itensConsumo}
-              onSelect={setQuartoSelecionado}
+              onSelect={q => setQuartoSelecionadoId(q.id)}
               podeEditar={podeEditar}
+              onRenomear={(id, nome) => updateQuarto(id, { nome })}
+              onExcluir={removeQuarto}
+              onMudarStatus={(id, status) => updateQuarto(id, { status })}
             />
           ))}
         </div>

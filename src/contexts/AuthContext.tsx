@@ -7,97 +7,83 @@ import {
   User as FirebaseUser
 } from 'firebase/auth'
 import { FirebaseError } from 'firebase/app'
-import { ref, get, set } from 'firebase/database'
-import { auth, db } from '../services/firebase'
-import { Usuario, UserNivel } from '../types'
+import { auth } from '../services/firebase'
+import { useData } from './DataContext'
+import { Usuario, AreaKey } from '../types'
 
-// Mapeamento de logins customizados para emails Firebase
-const LOGIN_MAP: Record<string, { email: string; senha: string; nivel: UserNivel; nome: string }> = {
-  userMaster: {
-    email: 'master@pousada.app',
-    senha: '@userMaster2026',
-    nivel: 'master',
-    nome: 'Administrador Master'
-  }
+// Por enquanto, único login com bootstrap automático do sistema
+const ADMIN_ACCOUNT = {
+  email: 'adm@pousadasertanejo.com',
+  senha: 'adm@2025',
+  nome: 'Administrador'
 }
+
+const TODAS_AREAS: AreaKey[] = ['dashboard', 'quartos', 'hospedes', 'itens', 'consumo', 'entrada', 'colaboradores']
 
 interface AuthContextType {
   firebaseUser: FirebaseUser | null
   usuario: Usuario | null
   loading: boolean
-  login: (username: string, senha: string) => Promise<void>
+  login: (email: string, senha: string) => Promise<void>
   logout: () => Promise<void>
-  isAuthorized: (nivelMinimo: UserNivel) => boolean
+  isAuthorized: (area: AreaKey) => boolean
 }
 
 const AuthContext = createContext<AuthContextType | null>(null)
-
-const NIVEL_HIERARQUIA: Record<UserNivel, number> = {
-  master: 3,
-  adm: 2,
-  simples: 1
-}
 
 export function AuthProvider({ children }: { children: ReactNode }) {
   const [firebaseUser, setFirebaseUser] = useState<FirebaseUser | null>(null)
   const [usuario, setUsuario] = useState<Usuario | null>(null)
   const [loading, setLoading] = useState(true)
+  const { getUsuarioPorEmail, addUsuario } = useData()
 
   useEffect(() => {
-    const unsubscribe = onAuthStateChanged(auth, async (fbUser) => {
+    const unsubscribe = onAuthStateChanged(auth, (fbUser) => {
       setFirebaseUser(fbUser)
-      if (fbUser) {
-        try {
-          const snap = await get(ref(db, `usuarios/${fbUser.uid}`))
-          if (snap.exists()) {
-            setUsuario({ id: fbUser.uid, ...snap.val() } as Usuario)
-          }
-        } catch (err) {
-          console.error('Erro ao carregar usuário:', err)
-        }
+      if (fbUser?.email) {
+        const perfil = getUsuarioPorEmail(fbUser.email)
+        setUsuario(perfil || null)
       } else {
         setUsuario(null)
       }
       setLoading(false)
     })
     return unsubscribe
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])
 
-  const login = async (username: string, senha: string) => {
-    const mapped = LOGIN_MAP[username]
-    if (mapped) {
-      let cred
-      try {
-        cred = await signInWithEmailAndPassword(auth, mapped.email, mapped.senha)
-      } catch (err) {
-        if (
-          err instanceof FirebaseError &&
-          (err.code === 'auth/user-not-found' || err.code === 'auth/invalid-credential')
-        ) {
-          // Primeira execução: cria o usuário master no Firebase Auth
-          cred = await createUserWithEmailAndPassword(auth, mapped.email, mapped.senha)
-        } else {
-          throw err
-        }
+  const login = async (email: string, senha: string) => {
+    const isAdminBootstrap = email === ADMIN_ACCOUNT.email && senha === ADMIN_ACCOUNT.senha
+
+    let cred
+    try {
+      cred = await signInWithEmailAndPassword(auth, email, senha)
+    } catch (err) {
+      if (
+        isAdminBootstrap &&
+        err instanceof FirebaseError &&
+        (err.code === 'auth/user-not-found' || err.code === 'auth/invalid-credential')
+      ) {
+        // Primeira execução: cria a conta admin no Firebase Auth
+        cred = await createUserWithEmailAndPassword(auth, email, senha)
+      } else {
+        throw err
       }
-      // Garante que o perfil existe no banco
-      const snap = await get(ref(db, `usuarios/${cred.user.uid}`))
-      if (!snap.exists()) {
-        const perfil: Omit<Usuario, 'id'> = {
-          nome: mapped.nome,
-          cpf: '',
-          contato: '',
-          email: mapped.email,
-          nivel: mapped.nivel,
-          loginUsername: username
-        }
-        await set(ref(db, `usuarios/${cred.user.uid}`), perfil)
-        setUsuario({ id: cred.user.uid, ...perfil })
-      }
-    } else {
-      // Login direto por email (colaboradores cadastrados)
-      await signInWithEmailAndPassword(auth, username, senha)
     }
+
+    let perfil = getUsuarioPorEmail(cred.user.email || email)
+    if (!perfil && isAdminBootstrap) {
+      perfil = addUsuario({
+        nome: ADMIN_ACCOUNT.nome,
+        cpf: '',
+        contato: '',
+        email: ADMIN_ACCOUNT.email,
+        admin: true,
+        areas: TODAS_AREAS,
+        loginUsername: ADMIN_ACCOUNT.email
+      })
+    }
+    setUsuario(perfil || null)
   }
 
   const logout = async () => {
@@ -105,9 +91,9 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     setUsuario(null)
   }
 
-  const isAuthorized = (nivelMinimo: UserNivel) => {
+  const isAuthorized = (area: AreaKey) => {
     if (!usuario) return false
-    return NIVEL_HIERARQUIA[usuario.nivel] >= NIVEL_HIERARQUIA[nivelMinimo]
+    return usuario.admin || usuario.areas.includes(area)
   }
 
   return (

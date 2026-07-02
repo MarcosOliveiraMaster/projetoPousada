@@ -1,34 +1,58 @@
-import { useEffect, useState } from 'react'
-import { ref, onValue, push, update, remove } from 'firebase/database'
-import { db } from '../../services/firebase'
-import { Hospede, StatusHospede, Quarto } from '../../types'
+import { useState, KeyboardEvent } from 'react'
+import { useData } from '../../contexts/DataContext'
+import { Hospede } from '../../types'
 import { useAuth } from '../../contexts/AuthContext'
 import {
   Plus, Users, Search, Edit2, Trash2, X, Check,
-  Phone, Mail, MapPin, CalendarCheck, CalendarX
+  Phone, Mail, MapPin, Globe2, CalendarCheck, CalendarX, Tag
 } from 'lucide-react'
 
+const SUGESTOES_PREFERENCIAS = [
+  'Vista para o mar', 'Andar térreo', 'Silencioso', 'Pet friendly',
+  'Vegetariano', 'Não fumante', 'Cama extra', 'Acessibilidade'
+]
+
 const HOSPEDE_VAZIO: Omit<Hospede, 'id' | 'createdAt'> = {
-  nome: '', cpf: '', email: '', uid: '', contato: '',
-  detalhes: '', checkin: '', checkout: '', status: 'ativo', alocacao: ''
+  nome: '', cpf: '', email: '', contato: '',
+  nacionalidade: '', cidade: '', estado: '', pais: '',
+  preferencias: [], observacoes: ''
 }
 
 interface FormHospedeProps {
   inicial?: Hospede
-  quartos: Quarto[]
   onSalvar: (dados: Omit<Hospede, 'id' | 'createdAt'>) => void
   onCancelar: () => void
 }
 
-function FormHospede({ inicial, quartos, onSalvar, onCancelar }: FormHospedeProps) {
+function FormHospede({ inicial, onSalvar, onCancelar }: FormHospedeProps) {
   const [form, setForm] = useState<Omit<Hospede, 'id' | 'createdAt'>>(
-    inicial ? { nome: inicial.nome, cpf: inicial.cpf, email: inicial.email, uid: inicial.uid,
-      contato: inicial.contato, detalhes: inicial.detalhes, checkin: inicial.checkin,
-      checkout: inicial.checkout, status: inicial.status, alocacao: inicial.alocacao || '' }
-    : HOSPEDE_VAZIO
+    inicial ? {
+      nome: inicial.nome, cpf: inicial.cpf, email: inicial.email, contato: inicial.contato,
+      nacionalidade: inicial.nacionalidade, cidade: inicial.cidade, estado: inicial.estado, pais: inicial.pais,
+      preferencias: inicial.preferencias || [], observacoes: inicial.observacoes || ''
+    } : HOSPEDE_VAZIO
   )
+  const [tagInput, setTagInput] = useState('')
 
   const set = (k: keyof typeof form, v: string) => setForm(prev => ({ ...prev, [k]: v }))
+
+  const adicionarTag = (tag: string) => {
+    const limpa = tag.trim()
+    if (!limpa || form.preferencias.includes(limpa)) return
+    setForm(prev => ({ ...prev, preferencias: [...prev.preferencias, limpa] }))
+    setTagInput('')
+  }
+
+  const removerTag = (tag: string) => {
+    setForm(prev => ({ ...prev, preferencias: prev.preferencias.filter(t => t !== tag) }))
+  }
+
+  const onTagKeyDown = (e: KeyboardEvent<HTMLInputElement>) => {
+    if (e.key === 'Enter' || e.key === ',') {
+      e.preventDefault()
+      adicionarTag(tagInput)
+    }
+  }
 
   const inputClass = "w-full px-3 py-2 rounded-xl border border-sand-200 font-body text-sm text-brand-900 bg-sand-50 focus:outline-none focus:ring-2 focus:ring-brand-400 focus:border-transparent placeholder:text-sand-400"
   const labelClass = "block font-body text-xs font-medium text-brand-700 uppercase tracking-wider mb-1"
@@ -44,8 +68,8 @@ function FormHospede({ inicial, quartos, onSalvar, onCancelar }: FormHospedeProp
           <input className={inputClass} value={form.nome} onChange={e => set('nome', e.target.value)} placeholder="Nome do hóspede" />
         </div>
         <div>
-          <label className={labelClass}>CPF</label>
-          <input className={inputClass} value={form.cpf} onChange={e => set('cpf', e.target.value)} placeholder="000.000.000-00" />
+          <label className={labelClass}>CPF / Documento</label>
+          <input className={inputClass} value={form.cpf} onChange={e => set('cpf', e.target.value)} placeholder="000.000.000-00 ou passaporte" />
         </div>
         <div>
           <label className={labelClass}>Contato</label>
@@ -56,34 +80,52 @@ function FormHospede({ inicial, quartos, onSalvar, onCancelar }: FormHospedeProp
           <input type="email" className={inputClass} value={form.email} onChange={e => set('email', e.target.value)} placeholder="email@exemplo.com" />
         </div>
         <div>
-          <label className={labelClass}>UID</label>
-          <input className={inputClass} value={form.uid} onChange={e => set('uid', e.target.value)} placeholder="Código de identificação" />
+          <label className={labelClass}>Nacionalidade</label>
+          <input className={inputClass} value={form.nacionalidade} onChange={e => set('nacionalidade', e.target.value)} placeholder="Brasileira" />
         </div>
         <div>
-          <label className={labelClass}>Check-in</label>
-          <input type="date" className={inputClass} value={form.checkin} onChange={e => set('checkin', e.target.value)} />
+          <label className={labelClass}>Cidade</label>
+          <input className={inputClass} value={form.cidade} onChange={e => set('cidade', e.target.value)} placeholder="Cidade de origem" />
         </div>
         <div>
-          <label className={labelClass}>Check-out</label>
-          <input type="date" className={inputClass} value={form.checkout} onChange={e => set('checkout', e.target.value)} />
-        </div>
-        <div>
-          <label className={labelClass}>Quarto</label>
-          <select className={inputClass} value={form.alocacao} onChange={e => set('alocacao', e.target.value)}>
-            <option value="">Sem quarto</option>
-            {quartos.map(q => <option key={q.id} value={q.id}>{q.nome}</option>)}
-          </select>
-        </div>
-        <div>
-          <label className={labelClass}>Status</label>
-          <select className={inputClass} value={form.status} onChange={e => set('status', e.target.value as StatusHospede)}>
-            <option value="ativo">Ativo</option>
-            <option value="inativo">Inativo</option>
-          </select>
+          <label className={labelClass}>Estado</label>
+          <input className={inputClass} value={form.estado} onChange={e => set('estado', e.target.value)} placeholder="UF" />
         </div>
         <div className="sm:col-span-2">
-          <label className={labelClass}>Detalhes / Preferências</label>
-          <textarea className={`${inputClass} resize-none h-20`} value={form.detalhes} onChange={e => set('detalhes', e.target.value)} placeholder="Preferências, alergias, observações..." />
+          <label className={labelClass}>País</label>
+          <input className={inputClass} value={form.pais} onChange={e => set('pais', e.target.value)} placeholder="Brasil" />
+        </div>
+
+        <div className="sm:col-span-2">
+          <label className={labelClass}>Preferências</label>
+          <div className="flex flex-wrap gap-1.5 mb-2">
+            {form.preferencias.map(tag => (
+              <span key={tag} className="inline-flex items-center gap-1 font-body text-xs font-medium px-2.5 py-1 rounded-lg bg-brand-100 text-brand-700">
+                <Tag className="w-3 h-3" /> {tag}
+                <button onClick={() => removerTag(tag)} className="hover:text-red-600"><X className="w-3 h-3" /></button>
+              </span>
+            ))}
+          </div>
+          <input
+            className={inputClass}
+            value={tagInput}
+            onChange={e => setTagInput(e.target.value)}
+            onKeyDown={onTagKeyDown}
+            placeholder="Digite e pressione Enter para adicionar..."
+          />
+          <div className="flex flex-wrap gap-1.5 mt-2">
+            {SUGESTOES_PREFERENCIAS.filter(s => !form.preferencias.includes(s)).map(s => (
+              <button key={s} onClick={() => adicionarTag(s)}
+                className="font-body text-xs px-2.5 py-1 rounded-lg border border-sand-200 text-sand-500 hover:border-brand-300 hover:text-brand-700 transition-colors">
+                + {s}
+              </button>
+            ))}
+          </div>
+        </div>
+
+        <div className="sm:col-span-2">
+          <label className={labelClass}>Observações</label>
+          <textarea className={`${inputClass} resize-none h-20`} value={form.observacoes} onChange={e => set('observacoes', e.target.value)} placeholder="Alergias, restrições, observações gerais..." />
         </div>
       </div>
       <div className="flex gap-3 mt-5 justify-end">
@@ -100,42 +142,25 @@ function FormHospede({ inicial, quartos, onSalvar, onCancelar }: FormHospedeProp
 }
 
 export default function HospedesPage() {
-  const [hospedes, setHospedes] = useState<Hospede[]>([])
-  const [quartos, setQuartos] = useState<Quarto[]>([])
+  const { hospedes, quartos, addHospede, updateHospede, removeHospede, getEstadiasPorHospede } = useData()
   const [busca, setBusca] = useState('')
   const [formAberto, setFormAberto] = useState(false)
   const [editando, setEditando] = useState<Hospede | null>(null)
-  const [carregando, setCarregando] = useState(true)
   const { isAuthorized } = useAuth()
-  const podeEditar = isAuthorized('adm')
+  const podeEditar = isAuthorized('hospedes')
 
-  useEffect(() => {
-    const unsubH = onValue(ref(db, 'hospedes'), snap => {
-      const data: Hospede[] = []
-      snap.forEach(child => data.push({ id: child.key!, ...child.val() }))
-      setHospedes(data.sort((a, b) => (b.createdAt || 0) - (a.createdAt || 0)))
-      setCarregando(false)
-    })
-    const unsubQ = onValue(ref(db, 'quartos'), snap => {
-      const data: Quarto[] = []
-      snap.forEach(child => data.push({ id: child.key!, ...child.val() }))
-      setQuartos(data)
-    })
-    return () => { unsubH(); unsubQ() }
-  }, [])
-
-  const salvar = async (dados: Omit<Hospede, 'id' | 'createdAt'>) => {
+  const salvar = (dados: Omit<Hospede, 'id' | 'createdAt'>) => {
     if (editando) {
-      await update(ref(db, `hospedes/${editando.id}`), dados)
+      updateHospede(editando.id, dados)
       setEditando(null)
     } else {
-      await push(ref(db, 'hospedes'), { ...dados, createdAt: Date.now() })
+      addHospede(dados)
       setFormAberto(false)
     }
   }
 
-  const excluir = async (id: string) => {
-    if (confirm('Excluir este hóspede?')) await remove(ref(db, `hospedes/${id}`))
+  const excluir = (id: string) => {
+    if (confirm('Excluir este hóspede?')) removeHospede(id)
   }
 
   const nomeQuarto = (id?: string) => quartos.find(q => q.id === id)?.nome || '—'
@@ -144,14 +169,14 @@ export default function HospedesPage() {
     h.nome?.toLowerCase().includes(busca.toLowerCase()) ||
     h.cpf?.includes(busca) ||
     h.email?.toLowerCase().includes(busca.toLowerCase())
-  )
+  ).sort((a, b) => (b.createdAt || 0) - (a.createdAt || 0))
 
   return (
     <div className="space-y-6">
       <div className="flex items-center justify-between">
         <div>
           <h1 className="font-display text-2xl lg:text-3xl text-brand-900">Hóspedes</h1>
-          <p className="font-body text-sand-500 text-sm mt-0.5">{hospedes.length} hóspede{hospedes.length !== 1 ? 's' : ''}</p>
+          <p className="font-body text-sand-500 text-sm mt-0.5">{hospedes.length} hóspede{hospedes.length !== 1 ? 's' : ''} cadastrado{hospedes.length !== 1 ? 's' : ''}</p>
         </div>
         {podeEditar && (
           <button onClick={() => { setFormAberto(true); setEditando(null) }}
@@ -163,10 +188,10 @@ export default function HospedesPage() {
       </div>
 
       {(formAberto && !editando) && (
-        <FormHospede quartos={quartos} onSalvar={salvar} onCancelar={() => setFormAberto(false)} />
+        <FormHospede onSalvar={salvar} onCancelar={() => setFormAberto(false)} />
       )}
       {editando && (
-        <FormHospede inicial={editando} quartos={quartos} onSalvar={salvar} onCancelar={() => setEditando(null)} />
+        <FormHospede inicial={editando} onSalvar={salvar} onCancelar={() => setEditando(null)} />
       )}
 
       {/* Busca */}
@@ -180,51 +205,63 @@ export default function HospedesPage() {
       </div>
 
       {/* Lista */}
-      {carregando ? (
-        <div className="space-y-3">
-          {[...Array(3)].map((_, i) => <div key={i} className="bg-white rounded-2xl h-20 animate-pulse border border-sand-100" />)}
-        </div>
-      ) : filtrados.length === 0 ? (
+      {filtrados.length === 0 ? (
         <div className="flex flex-col items-center justify-center py-16 text-center">
           <Users className="w-12 h-12 text-sand-300 mb-3" strokeWidth={1} />
           <p className="font-body font-semibold text-brand-900">Nenhum hóspede encontrado</p>
         </div>
       ) : (
         <div className="space-y-3">
-          {filtrados.map(h => (
-            <div key={h.id} className="bg-white rounded-2xl shadow-card border border-sand-100 p-4 flex items-start gap-4">
-              <div className="w-10 h-10 rounded-xl bg-brand-100 flex items-center justify-center flex-shrink-0">
-                <span className="font-body font-semibold text-brand-700">{h.nome?.charAt(0).toUpperCase()}</span>
-              </div>
-              <div className="flex-1 min-w-0">
-                <div className="flex items-start justify-between gap-2">
-                  <div>
+          {filtrados.map(h => {
+            const ultimaEstadia = getEstadiasPorHospede(h.id)[0]
+            return (
+              <div key={h.id} className="bg-white rounded-2xl shadow-card border border-sand-100 p-4 flex items-start gap-4">
+                <div className="w-10 h-10 rounded-xl bg-brand-100 flex items-center justify-center flex-shrink-0">
+                  <span className="font-body font-semibold text-brand-700">{h.nome?.charAt(0).toUpperCase()}</span>
+                </div>
+                <div className="flex-1 min-w-0">
+                  <div className="flex items-start justify-between gap-2">
                     <h3 className="font-body font-semibold text-brand-900 text-sm">{h.nome}</h3>
-                    <span className={`inline-block font-body text-xs font-medium px-2 py-0.5 rounded-lg ${h.status === 'ativo' ? 'bg-brand-100 text-brand-700' : 'bg-sand-100 text-sand-600'}`}>
-                      {h.status === 'ativo' ? 'Ativo' : 'Inativo'}
-                    </span>
+                    {podeEditar && (
+                      <div className="flex items-center gap-1 flex-shrink-0">
+                        <button onClick={() => setEditando(h)} className="p-1.5 text-sand-400 hover:text-brand-600 hover:bg-sand-100 rounded-lg transition-colors">
+                          <Edit2 className="w-4 h-4" />
+                        </button>
+                        <button onClick={() => excluir(h.id)} className="p-1.5 text-sand-400 hover:text-red-500 hover:bg-red-50 rounded-lg transition-colors">
+                          <Trash2 className="w-4 h-4" />
+                        </button>
+                      </div>
+                    )}
                   </div>
-                  {podeEditar && (
-                    <div className="flex items-center gap-1 flex-shrink-0">
-                      <button onClick={() => setEditando(h)} className="p-1.5 text-sand-400 hover:text-brand-600 hover:bg-sand-100 rounded-lg transition-colors">
-                        <Edit2 className="w-4 h-4" />
-                      </button>
-                      <button onClick={() => excluir(h.id)} className="p-1.5 text-sand-400 hover:text-red-500 hover:bg-red-50 rounded-lg transition-colors">
-                        <Trash2 className="w-4 h-4" />
-                      </button>
+                  <div className="mt-2 flex flex-wrap gap-x-4 gap-y-1">
+                    {h.contato && <span className="flex items-center gap-1 font-body text-xs text-sand-500"><Phone className="w-3 h-3" />{h.contato}</span>}
+                    {h.email && <span className="flex items-center gap-1 font-body text-xs text-sand-500"><Mail className="w-3 h-3" />{h.email}</span>}
+                    {(h.cidade || h.pais) && <span className="flex items-center gap-1 font-body text-xs text-sand-500"><MapPin className="w-3 h-3" />{[h.cidade, h.estado, h.pais].filter(Boolean).join(', ')}</span>}
+                    {h.nacionalidade && <span className="flex items-center gap-1 font-body text-xs text-sand-500"><Globe2 className="w-3 h-3" />{h.nacionalidade}</span>}
+                  </div>
+                  {h.preferencias.length > 0 && (
+                    <div className="mt-2 flex flex-wrap gap-1.5">
+                      {h.preferencias.map(tag => (
+                        <span key={tag} className="inline-flex items-center gap-1 font-body text-xs font-medium px-2 py-0.5 rounded-lg bg-brand-50 text-brand-600">
+                          <Tag className="w-3 h-3" /> {tag}
+                        </span>
+                      ))}
+                    </div>
+                  )}
+                  {ultimaEstadia && (
+                    <div className="mt-2 flex flex-wrap items-center gap-x-4 gap-y-1 px-3 py-2 rounded-xl bg-sand-50">
+                      <span className={`font-body text-xs font-medium px-2 py-0.5 rounded-lg ${ultimaEstadia.status === 'ativa' ? 'bg-brand-100 text-brand-700' : 'bg-sand-100 text-sand-600'}`}>
+                        {ultimaEstadia.status === 'ativa' ? 'Estadia ativa' : 'Última estadia'}
+                      </span>
+                      <span className="flex items-center gap-1 font-body text-xs text-sand-500"><MapPin className="w-3 h-3" />{nomeQuarto(ultimaEstadia.quartoId)}</span>
+                      <span className="flex items-center gap-1 font-body text-xs text-sand-500"><CalendarCheck className="w-3 h-3" />{new Date(ultimaEstadia.dataEntrada).toLocaleDateString('pt-BR')}</span>
+                      <span className="flex items-center gap-1 font-body text-xs text-sand-500"><CalendarX className="w-3 h-3" />{new Date(ultimaEstadia.dataSaida).toLocaleDateString('pt-BR')}</span>
                     </div>
                   )}
                 </div>
-                <div className="mt-2 flex flex-wrap gap-x-4 gap-y-1">
-                  {h.contato && <span className="flex items-center gap-1 font-body text-xs text-sand-500"><Phone className="w-3 h-3" />{h.contato}</span>}
-                  {h.email && <span className="flex items-center gap-1 font-body text-xs text-sand-500"><Mail className="w-3 h-3" />{h.email}</span>}
-                  {h.alocacao && <span className="flex items-center gap-1 font-body text-xs text-sand-500"><MapPin className="w-3 h-3" />{nomeQuarto(h.alocacao)}</span>}
-                  {h.checkin && <span className="flex items-center gap-1 font-body text-xs text-sand-500"><CalendarCheck className="w-3 h-3" />{new Date(h.checkin).toLocaleDateString('pt-BR')}</span>}
-                  {h.checkout && <span className="flex items-center gap-1 font-body text-xs text-sand-500"><CalendarX className="w-3 h-3" />{new Date(h.checkout).toLocaleDateString('pt-BR')}</span>}
-                </div>
               </div>
-            </div>
-          ))}
+            )
+          })}
         </div>
       )}
     </div>
