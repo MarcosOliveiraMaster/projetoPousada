@@ -2,7 +2,6 @@ import { useState, FormEvent } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { useAuth } from '../../contexts/AuthContext'
 import { Leaf } from 'lucide-react'
-import { FirebaseError } from 'firebase/app'
 
 export default function LoginPage() {
   const [email, setEmail] = useState('')
@@ -19,26 +18,8 @@ export default function LoginPage() {
     try {
       await login(email.trim(), senha)
       navigate('/dashboard')
-    } catch (err: unknown) {
-      if (err instanceof FirebaseError) {
-        switch (err.code) {
-          case 'auth/network-request-failed':
-            setErro('Sem conexão com a internet. Verifique sua rede.')
-            break
-          case 'auth/operation-not-allowed':
-            setErro('Autenticação não habilitada no Firebase.')
-            break
-          case 'auth/user-not-found':
-          case 'auth/invalid-credential':
-          case 'auth/wrong-password':
-            setErro('Email ou senha incorretos.')
-            break
-          default:
-            setErro(`Erro ao entrar (${err.code})`)
-        }
-      } else {
-        setErro('Erro inesperado. Tente novamente.')
-      }
+    } catch {
+      setErro('Erro inesperado. Tente novamente.')
     } finally {
       setCarregando(false)
     }
