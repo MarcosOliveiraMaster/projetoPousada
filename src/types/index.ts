@@ -7,6 +7,7 @@ export type AreaKey =
   | 'consumo'
   | 'entrada'
   | 'colaboradores'
+  | 'mapaHospedes'
 
 // ─── User / Auth ────────────────────────────────────────────────
 export interface Usuario {
@@ -34,6 +35,8 @@ export interface Quarto {
   id: string
   nome: string
   status: StatusQuarto
+  descricao?: string
+  fotos?: string[]              // data URLs (base64)
   itensMobilia: string[]       // IDs dos itens de mobília
   itensConsumo: string[]       // IDs dos itens de consumo
   posicoes: Record<string, PosicaoItem>
@@ -41,16 +44,9 @@ export interface Quarto {
 }
 
 // ─── Itens de Mobília ────────────────────────────────────────────
-export type TipoItem =
-  | 'cama'
-  | 'guarda-roupa'
-  | 'televisao'
-  | 'frigobar'
-  | 'ar-condicionado'
-  | 'microondas'
-  | 'ventilador-teto'
-  | 'banheiro-agua-quente'
-  | 'banheiro-sem-agua-quente'
+// Livre (não é mais uma union fechada) para permitir criar tipos novos
+// pela biblioteca de ícones em Itens; `icone` guarda a chave do ícone.
+export type TipoItem = string
 
 export interface ItemMobilia {
   id: string
@@ -78,6 +74,7 @@ export interface MovimentoEstoque {
   tipo: 'entrada' | 'saida'
   quantidade: number
   motivo?: string
+  consumoRegistroId?: string   // liga ao ConsumoRegistro que originou a saída
   data: number
   createdAt: number
 }
@@ -128,6 +125,7 @@ export interface ConsumoRegistro {
   quantidade: number
   precoUnitario: number
   precoTotal: number
+  pago?: boolean
   data: number
   createdAt: number
 }

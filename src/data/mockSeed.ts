@@ -3,7 +3,7 @@ import {
   Hospede, Usuario, Estadia, ConsumoRegistro, MetaFinanceira, AreaKey
 } from '../types'
 
-const TODAS_AREAS: AreaKey[] = ['dashboard', 'quartos', 'hospedes', 'itens', 'consumo', 'entrada', 'colaboradores']
+const TODAS_AREAS: AreaKey[] = ['dashboard', 'quartos', 'hospedes', 'itens', 'consumo', 'entrada', 'colaboradores', 'mapaHospedes']
 
 function dataOffset(dias: number): string {
   const d = new Date()

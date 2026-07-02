@@ -2,11 +2,10 @@ import { useMemo, useState } from 'react'
 import { useData } from '../../contexts/DataContext'
 import { Estadia, FormaPagamento, StatusEstadia } from '../../types'
 import { formatarMoeda, formatarData, calcularStatusPagamento, calcularNoites } from '../../utils/format'
-import { lerArquivosComoBase64 } from '../../utils/upload'
+import GaleriaComprovantes from '../shared/GaleriaComprovantes'
 import EntradaDetalhe from './EntradaDetalhe'
 import {
-  Plus, LogIn, Search, X, Check, CalendarCheck, CalendarX, BedDouble,
-  UserCircle, Upload, Image as ImageIcon
+  Plus, LogIn, Search, X, Check, CalendarCheck, CalendarX, BedDouble, UserCircle
 } from 'lucide-react'
 
 const FORMAS_PAGAMENTO: { value: FormaPagamento; label: string }[] = [
@@ -38,24 +37,10 @@ function NovaEntradaForm({ onSalvar, onCancelar }: NovaEntradaFormProps) {
   const [formaPagamento, setFormaPagamento] = useState<FormaPagamento>('pix')
   const [observacoes, setObservacoes] = useState('')
   const [comprovantes, setComprovantes] = useState<string[]>([])
-  const [enviandoFotos, setEnviandoFotos] = useState(false)
 
   const noites = calcularNoites(dataEntrada, dataSaida)
   const valorTotal = noites * valorDiaria
   const quartosDisponiveis = dataEntrada && dataSaida ? getQuartosDisponiveisNoPeriodo(dataEntrada, dataSaida) : []
-
-  const adicionarFotos = async (files: FileList | null) => {
-    if (!files || files.length === 0) return
-    const vagas = 5 - comprovantes.length
-    if (vagas <= 0) return
-    setEnviandoFotos(true)
-    try {
-      const novas = await lerArquivosComoBase64(Array.from(files).slice(0, vagas))
-      setComprovantes(prev => [...prev, ...novas])
-    } finally {
-      setEnviandoFotos(false)
-    }
-  }
 
   const podeSalvar = hospedeId && quartoId && dataEntrada && dataSaida && noites > 0
 
@@ -131,26 +116,8 @@ function NovaEntradaForm({ onSalvar, onCancelar }: NovaEntradaFormProps) {
           </div>
 
           <div className="sm:col-span-2">
-            <label className={labelClass}>Comprovantes ({comprovantes.length}/5)</label>
-            <div className="grid grid-cols-5 gap-2 mb-2">
-              {comprovantes.map((src, idx) => (
-                <div key={idx} className="relative aspect-square rounded-xl overflow-hidden border border-sand-200 group">
-                  <img src={src} alt={`Comprovante ${idx + 1}`} className="w-full h-full object-cover" />
-                  <button onClick={() => setComprovantes(prev => prev.filter((_, i) => i !== idx))}
-                    className="absolute top-1 right-1 p-1 bg-white/90 rounded-lg text-red-500 opacity-0 group-hover:opacity-100 transition-opacity">
-                    <X className="w-3 h-3" />
-                  </button>
-                </div>
-              ))}
-            </div>
-            {comprovantes.length < 5 && (
-              <label className="flex items-center justify-center gap-2 px-4 py-2.5 rounded-xl border-2 border-dashed border-sand-300 text-sand-500 hover:border-brand-300 hover:text-brand-600 cursor-pointer transition-colors font-body text-sm">
-                {enviandoFotos ? <ImageIcon className="w-4 h-4 animate-pulse" /> : <Upload className="w-4 h-4" />}
-                {enviandoFotos ? 'Enviando...' : 'Adicionar fotos (recibos, comprovantes...)'}
-                <input type="file" accept="image/*" multiple className="hidden" disabled={enviandoFotos}
-                  onChange={e => { adicionarFotos(e.target.files); e.target.value = '' }} />
-              </label>
-            )}
+            <label className={labelClass}>Comprovantes</label>
+            <GaleriaComprovantes arquivos={comprovantes} onChange={setComprovantes} />
           </div>
 
           <div className="sm:col-span-2">

@@ -11,6 +11,7 @@ import ItensPage from './components/itens/ItensPage'
 import ConsumoPage from './components/consumo/ConsumoPage'
 import ColaboradoresPage from './components/colaboradores/ColaboradoresPage'
 import EntradaPage from './components/entrada/EntradaPage'
+import MapaHospedesPage from './components/mapaHospedes/MapaHospedesPage'
 
 function AppRoutes() {
   return (
@@ -58,6 +59,12 @@ function AppRoutes() {
       <Route path="/entrada" element={
         <ProtectedRoute area="entrada">
           <AppLayout><EntradaPage /></AppLayout>
+        </ProtectedRoute>
+      } />
+
+      <Route path="/mapa-hospedes" element={
+        <ProtectedRoute area="mapaHospedes">
+          <AppLayout><MapaHospedesPage /></AppLayout>
         </ProtectedRoute>
       } />
 

@@ -3,10 +3,11 @@ import { useData } from '../../contexts/DataContext'
 import { Quarto, StatusQuarto, ItemMobilia } from '../../types'
 import { useAuth } from '../../contexts/AuthContext'
 import { formatarData } from '../../utils/format'
+import { getIconeItem } from '../../constants/itensBiblioteca'
 import RegistrarConsumoForm from '../shared/RegistrarConsumoForm'
 import {
-  ArrowLeft, BedDouble, Tv, Refrigerator, AirVent, Microwave, Fan, ShowerHead, Bath,
-  Package, Sofa, CheckCircle2, RotateCw, CalendarCheck, CalendarX, UserCircle
+  ArrowLeft, BedDouble, Refrigerator,
+  Package, CheckCircle2, RotateCw, CalendarCheck, CalendarX, UserCircle, Trash2
 } from 'lucide-react'
 
 const STATUS_CONFIG: Record<StatusQuarto, { label: string; color: string }> = {
@@ -16,18 +17,6 @@ const STATUS_CONFIG: Record<StatusQuarto, { label: string; color: string }> = {
   desativado: { label: 'Desativado',  color: 'bg-sand-100 text-sand-600' },
 }
 
-const TIPO_ICONE: Record<string, React.ReactNode> = {
-  'cama':                    <BedDouble className="w-8 h-8" strokeWidth={1.5} />,
-  'guarda-roupa':            <Sofa className="w-8 h-8" strokeWidth={1.5} />,
-  'televisao':               <Tv className="w-8 h-8" strokeWidth={1.5} />,
-  'frigobar':                <Refrigerator className="w-8 h-8" strokeWidth={1.5} />,
-  'ar-condicionado':         <AirVent className="w-8 h-8" strokeWidth={1.5} />,
-  'microondas':              <Microwave className="w-8 h-8" strokeWidth={1.5} />,
-  'ventilador-teto':         <Fan className="w-8 h-8" strokeWidth={1.5} />,
-  'banheiro-agua-quente':    <ShowerHead className="w-8 h-8" strokeWidth={1.5} />,
-  'banheiro-sem-agua-quente': <Bath className="w-8 h-8" strokeWidth={1.5} />,
-}
-
 interface Props {
   quarto: Quarto
   itensMobilia: ItemMobilia[]
@@ -35,7 +24,7 @@ interface Props {
 }
 
 export default function QuartoDetalhe({ quarto, itensMobilia, onVoltar }: Props) {
-  const { itensConsumo, updateQuarto, getEstadiaAtivaPorQuarto, hospedes } = useData()
+  const { itensConsumo, updateQuarto, removeQuarto, getEstadiaAtivaPorQuarto, hospedes } = useData()
   const { isAuthorized } = useAuth()
   const podeEditar = isAuthorized('quartos')
   const canvasRef = useRef<HTMLDivElement>(null)
@@ -104,8 +93,17 @@ export default function QuartoDetalhe({ quarto, itensMobilia, onVoltar }: Props)
     updateQuarto(quarto.id, { status })
   }
 
+  const excluirQuarto = () => {
+    if (confirm(`Excluir o quarto "${quarto.nome}"? Essa ação não pode ser desfeita.`)) {
+      removeQuarto(quarto.id)
+      onVoltar()
+    }
+  }
+
   const disponiveisParaAdicionar = itensMobilia.filter(i => !(quarto.itensMobilia || []).includes(i.id))
   const consumoParaAdicionar = itensConsumo.filter(i => !(quarto.itensConsumo || []).includes(i.id))
+
+  const painelScroll = "max-h-[55vh] lg:max-h-[calc(100vh-260px)] overflow-y-auto"
 
   return (
     <div className="space-y-6">
@@ -116,12 +114,18 @@ export default function QuartoDetalhe({ quarto, itensMobilia, onVoltar }: Props)
           className="p-2 hover:bg-sand-100 rounded-xl transition-colors text-brand-700">
           <ArrowLeft className="w-5 h-5" />
         </button>
-        <div>
+        <div className="flex-1">
           <h1 className="font-display text-2xl text-brand-900">{quarto.nome}</h1>
           <span className={`inline-block font-body text-xs font-medium px-2 py-0.5 rounded-lg ${STATUS_CONFIG[quarto.status].color}`}>
             {STATUS_CONFIG[quarto.status].label}
           </span>
         </div>
+        {podeEditar && (
+          <button onClick={excluirQuarto} title="Excluir quarto"
+            className="p-2 text-sand-400 hover:text-red-500 hover:bg-red-50 rounded-xl transition-colors">
+            <Trash2 className="w-4 h-4" />
+          </button>
+        )}
       </div>
 
       {/* Estadia ativa */}
@@ -139,10 +143,11 @@ export default function QuartoDetalhe({ quarto, itensMobilia, onVoltar }: Props)
         </div>
       )}
 
+      {/* Linha 1: planta + status/histórico de consumo */}
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
 
         {/* Canvas drag-and-drop */}
-        <div className="lg:col-span-2 space-y-6">
+        <div className="lg:col-span-2">
           <div className="bg-white rounded-2xl shadow-card border border-sand-100 overflow-hidden">
             <div className="px-4 py-3 border-b border-sand-100 flex items-center gap-2">
               <Package className="w-4 h-4 text-brand-500" />
@@ -180,7 +185,7 @@ export default function QuartoDetalhe({ quarto, itensMobilia, onVoltar }: Props)
                         className={`flex flex-col items-center gap-1 p-2 rounded-xl bg-white shadow-card border border-sand-200 w-full ${podeEditar ? 'cursor-grab active:cursor-grabbing hover:border-brand-300 hover:shadow-card-md' : ''} transition-shadow`}
                       >
                         <span className="text-brand-600 transition-transform" style={{ transform: `rotate(${pos.rotacao || 0}deg)` }}>
-                          {TIPO_ICONE[item.tipo] || <Package className="w-8 h-8" />}
+                          {getIconeItem(item.tipo)}
                         </span>
                         <span className="font-body text-xs text-sand-600 text-center leading-tight truncate w-full">{item.nome}</span>
                       </div>
@@ -199,24 +204,10 @@ export default function QuartoDetalhe({ quarto, itensMobilia, onVoltar }: Props)
               )}
             </div>
           </div>
-
-          {/* Controle de consumo (quartos com frigobar) */}
-          {temFrigobar && (
-            estadiaAtiva ? (
-              <RegistrarConsumoForm estadiaId={estadiaAtiva.id} quartoId={quarto.id} />
-            ) : (
-              <div className="bg-white rounded-2xl shadow-card border border-sand-100 p-4">
-                <p className="font-body font-medium text-brand-900 text-sm mb-1">Controle de consumo</p>
-                <p className="font-body text-sand-400 text-sm">Sem hóspede ativo neste quarto no momento.</p>
-              </div>
-            )
-          )}
         </div>
 
-        {/* Painel direito */}
-        <div className="space-y-4">
-
-          {/* Status */}
+        {/* Coluna direita: status + histórico de consumo */}
+        <div className="flex flex-col gap-4">
           {podeEditar && (
             <div className="bg-white rounded-2xl shadow-card border border-sand-100 p-4">
               <p className="font-body font-medium text-brand-900 text-sm mb-3">Status do quarto</p>
@@ -236,59 +227,72 @@ export default function QuartoDetalhe({ quarto, itensMobilia, onVoltar }: Props)
             </div>
           )}
 
-          {/* Adicionar item */}
-          {podeEditar && disponiveisParaAdicionar.length > 0 && (
-            <div className="bg-white rounded-2xl shadow-card border border-sand-100 p-4">
-              <p className="font-body font-medium text-brand-900 text-sm mb-3 flex items-center gap-2">
-                <Package className="w-4 h-4 text-brand-500" /> Adicionar mobília
-              </p>
-              <div className="space-y-1.5">
-                {disponiveisParaAdicionar.map(item => (
-                  <button key={item.id} onClick={() => adicionarItem(item.id)}
-                    className="flex items-center gap-2 w-full px-3 py-2 rounded-xl hover:bg-sand-50 border border-sand-100 transition-colors text-left">
-                    <span className="text-brand-500">{TIPO_ICONE[item.tipo] || <Package className="w-5 h-5" />}</span>
-                    <span className="font-body text-sm text-brand-800">{item.nome}</span>
-                  </button>
-                ))}
+          <div className={painelScroll}>
+            {!temFrigobar ? (
+              <div className="bg-white rounded-2xl shadow-card border border-sand-100 p-4">
+                <p className="font-body font-medium text-brand-900 text-sm mb-1">Itens de consumo do quarto</p>
+                <p className="font-body text-sand-400 text-sm">Este quarto não possui frigobar vinculado.</p>
               </div>
-            </div>
-          )}
-
-          {/* Vincular item de consumo ao quarto */}
-          {podeEditar && consumoParaAdicionar.length > 0 && (
-            <div className="bg-white rounded-2xl shadow-card border border-sand-100 p-4">
-              <p className="font-body font-medium text-brand-900 text-sm mb-3 flex items-center gap-2">
-                <Refrigerator className="w-4 h-4 text-amber-500" /> Vincular item de consumo
-              </p>
-              <div className="space-y-1.5">
-                {consumoParaAdicionar.map(item => (
-                  <button key={item.id} onClick={() => adicionarConsumo(item.id)}
-                    className="flex items-center gap-2 w-full px-3 py-2 rounded-xl hover:bg-amber-50 border border-sand-100 transition-colors text-left">
-                    <Refrigerator className="w-5 h-5 text-amber-500" />
-                    <span className="font-body text-sm text-brand-800">{item.nome}</span>
-                    <span className="ml-auto font-mono text-xs text-sand-400">{item.qtdAtual} un</span>
-                  </button>
-                ))}
+            ) : estadiaAtiva ? (
+              <RegistrarConsumoForm estadiaId={estadiaAtiva.id} quartoId={quarto.id} somenteHistorico={false} />
+            ) : (
+              <div className="bg-white rounded-2xl shadow-card border border-sand-100 p-4">
+                <p className="font-body font-medium text-brand-900 text-sm mb-1">Itens de consumo do quarto</p>
+                <p className="font-body text-sand-400 text-sm">Sem hóspede ativo neste quarto no momento.</p>
               </div>
-            </div>
-          )}
-
-          {/* Itens de consumo vinculados */}
-          {consumoDoQuarto.length > 0 && (
-            <div className="bg-white rounded-2xl shadow-card border border-sand-100 p-4">
-              <p className="font-body font-medium text-brand-900 text-sm mb-3">Itens de consumo do quarto</p>
-              <div className="space-y-1.5">
-                {consumoDoQuarto.map(item => (
-                  <div key={item.id} className="flex items-center gap-2 px-3 py-2 rounded-xl bg-amber-50">
-                    <Refrigerator className="w-4 h-4 text-amber-500" />
-                    <span className="font-body text-sm text-brand-800 flex-1">{item.nome}</span>
-                    <span className="font-mono text-xs font-medium text-amber-700">{item.qtdAtual} un</span>
-                  </div>
-                ))}
-              </div>
-            </div>
-          )}
+            )}
+          </div>
         </div>
+      </div>
+
+      {/* Linha 2: adicionar mobília (50%) + vincular item de consumo (50%) */}
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+
+        {podeEditar && (
+          <div className="bg-white rounded-2xl shadow-card border border-sand-100 p-4 flex flex-col">
+            <p className="font-body font-medium text-brand-900 text-sm mb-3 flex items-center gap-2">
+              <Package className="w-4 h-4 text-brand-500" /> Adicionar mobília
+            </p>
+            <div className={`space-y-1.5 ${painelScroll}`}>
+              {disponiveisParaAdicionar.length === 0 ? (
+                <p className="font-body text-sand-400 text-sm">Todos os itens de mobília cadastrados já estão neste quarto.</p>
+              ) : disponiveisParaAdicionar.map(item => (
+                <button key={item.id} onClick={() => adicionarItem(item.id)}
+                  className="flex items-center gap-2 w-full px-3 py-2 rounded-xl hover:bg-sand-50 border border-sand-100 transition-colors text-left">
+                  <span className="text-brand-500">{getIconeItem(item.tipo, 'w-5 h-5')}</span>
+                  <span className="font-body text-sm text-brand-800">{item.nome}</span>
+                </button>
+              ))}
+            </div>
+          </div>
+        )}
+
+        {podeEditar && (
+          <div className="bg-white rounded-2xl shadow-card border border-sand-100 p-4 flex flex-col">
+            <p className="font-body font-medium text-brand-900 text-sm mb-3 flex items-center gap-2">
+              <Refrigerator className="w-4 h-4 text-amber-500" /> Vincular item de consumo
+            </p>
+            <div className={`space-y-1.5 ${painelScroll}`}>
+              {consumoParaAdicionar.length === 0 ? (
+                <p className="font-body text-sand-400 text-sm">Todos os itens de consumo cadastrados já estão vinculados.</p>
+              ) : consumoParaAdicionar.map(item => (
+                <button key={item.id} onClick={() => adicionarConsumo(item.id)}
+                  className="flex items-center gap-2 w-full px-3 py-2 rounded-xl hover:bg-amber-50 border border-sand-100 transition-colors text-left">
+                  <Refrigerator className="w-5 h-5 text-amber-500" />
+                  <span className="font-body text-sm text-brand-800">{item.nome}</span>
+                  <span className="ml-auto font-mono text-xs text-sand-400">{item.qtdAtual} un</span>
+                </button>
+              ))}
+              {consumoDoQuarto.length > 0 && (
+                <div className="pt-2 mt-2 border-t border-sand-100 flex flex-wrap gap-1.5">
+                  {consumoDoQuarto.map(item => (
+                    <span key={item.id} className="font-body text-xs px-2 py-1 rounded-lg bg-amber-50 text-amber-700">{item.nome}</span>
+                  ))}
+                </div>
+              )}
+            </div>
+          </div>
+        )}
       </div>
     </div>
   )

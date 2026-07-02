@@ -4,7 +4,7 @@ import { useAuth } from '../../contexts/AuthContext'
 import { AreaKey } from '../../types'
 import {
   LayoutDashboard, BedDouble, Package, Users, ShoppingBasket,
-  LogOut, Menu, X, Leaf, ChevronRight, UserCircle, LogIn
+  LogOut, Menu, X, Leaf, ChevronRight, UserCircle, LogIn, Map
 } from 'lucide-react'
 
 interface NavItem {
@@ -20,6 +20,7 @@ const NAV_ITEMS: NavItem[] = [
   { to: '/quartos',       icon: <BedDouble className="w-5 h-5" />,        label: 'Quartos',       area: 'quartos' },
   { to: '/hospedes',      icon: <Users className="w-5 h-5" />,            label: 'Hóspedes',      area: 'hospedes' },
   { to: '/entrada',       icon: <LogIn className="w-5 h-5" />,            label: 'Entrada',       area: 'entrada' },
+  { to: '/mapa-hospedes', icon: <Map className="w-5 h-5" />,              label: 'Mapa de Hóspedes', area: 'mapaHospedes' },
   { to: '/itens',         icon: <Package className="w-5 h-5" />,          label: 'Itens',         area: 'itens' },
   { to: '/consumo',       icon: <ShoppingBasket className="w-5 h-5" />,   label: 'Consumo',       area: 'consumo' },
   { to: '/colaboradores', icon: <UserCircle className="w-5 h-5" />,       label: 'Colaboradores', area: 'colaboradores', somenteAdmin: true },

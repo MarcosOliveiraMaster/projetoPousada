@@ -18,7 +18,7 @@ const ADMIN_ACCOUNT = {
   nome: 'Administrador'
 }
 
-const TODAS_AREAS: AreaKey[] = ['dashboard', 'quartos', 'hospedes', 'itens', 'consumo', 'entrada', 'colaboradores']
+const TODAS_AREAS: AreaKey[] = ['dashboard', 'quartos', 'hospedes', 'itens', 'consumo', 'entrada', 'colaboradores', 'mapaHospedes']
 
 interface AuthContextType {
   firebaseUser: FirebaseUser | null

@@ -60,6 +60,9 @@ interface DataContextType extends MockDB {
   getEstadiaAtivaPorQuarto: (quartoId: string) => Estadia | undefined
   getEstadiasPorHospede: (hospedeId: string) => Estadia[]
   getQuartosDisponiveisNoPeriodo: (dataInicio: string, dataFim: string, excluirEstadiaId?: string) => Quarto[]
+  updateConsumoRegistro: (id: string, dados: Partial<ConsumoRegistro>) => void
+  removeConsumoRegistro: (id: string) => void
+
   getConsumoDaEstadia: (estadiaId: string) => ConsumoRegistro[]
   getTotalConsumoEstadia: (estadiaId: string) => number
   getReceitaMes: (anoMes: string) => number
@@ -76,6 +79,21 @@ export function DataProvider({ children }: { children: ReactNode }) {
   useEffect(() => {
     localStorage.setItem(STORAGE_KEY, JSON.stringify(db))
   }, [db])
+
+  // Sincroniza entre abas/janelas: o evento 'storage' só dispara em OUTRAS
+  // abas quando o localStorage muda, então isso não gera loop com o efeito acima.
+  useEffect(() => {
+    const onStorage = (e: StorageEvent) => {
+      if (e.key !== STORAGE_KEY || !e.newValue) return
+      try {
+        setDb(JSON.parse(e.newValue) as MockDB)
+      } catch {
+        // ignora payload inválido
+      }
+    }
+    window.addEventListener('storage', onStorage)
+    return () => window.removeEventListener('storage', onStorage)
+  }, [])
 
   // ─── Quartos ────────────────────────────────────────────────
   const addQuarto = useCallback((dados: Omit<Quarto, 'id' | 'createdAt'>) => {
@@ -190,13 +208,14 @@ export function DataProvider({ children }: { children: ReactNode }) {
     setDb(prev => {
       const item = prev.itensConsumo.find(i => i.id === itemConsumoId)
       if (!item || quantidade <= 0) return prev
+      const registroId = gerarId('cr')
       const registro: ConsumoRegistro = {
-        id: gerarId('cr'), estadiaId, quartoId, itemConsumoId, quantidade, precoUnitario,
-        precoTotal: quantidade * precoUnitario, data: Date.now(), createdAt: Date.now()
+        id: registroId, estadiaId, quartoId, itemConsumoId, quantidade, precoUnitario,
+        precoTotal: quantidade * precoUnitario, pago: false, data: Date.now(), createdAt: Date.now()
       }
       const movimento: MovimentoEstoque = {
         id: gerarId('me'), itemConsumoId, tipo: 'saida', quantidade,
-        motivo: 'Consumo', data: Date.now(), createdAt: Date.now()
+        motivo: 'Consumo', consumoRegistroId: registroId, data: Date.now(), createdAt: Date.now()
       }
       return {
         ...prev,
@@ -204,6 +223,28 @@ export function DataProvider({ children }: { children: ReactNode }) {
         movimentosEstoque: [...prev.movimentosEstoque, movimento],
         itensConsumo: prev.itensConsumo.map(i => i.id === itemConsumoId
           ? { ...i, qtdAtual: Math.max(0, i.qtdAtual - quantidade) }
+          : i)
+      }
+    })
+  }, [])
+
+  const updateConsumoRegistro = useCallback((id: string, dados: Partial<ConsumoRegistro>) => {
+    setDb(prev => ({
+      ...prev,
+      consumoRegistros: prev.consumoRegistros.map(c => c.id === id ? { ...c, ...dados } : c)
+    }))
+  }, [])
+
+  const removeConsumoRegistro = useCallback((id: string) => {
+    setDb(prev => {
+      const registro = prev.consumoRegistros.find(c => c.id === id)
+      if (!registro) return prev
+      return {
+        ...prev,
+        consumoRegistros: prev.consumoRegistros.filter(c => c.id !== id),
+        movimentosEstoque: prev.movimentosEstoque.filter(m => m.consumoRegistroId !== id),
+        itensConsumo: prev.itensConsumo.map(i => i.id === registro.itemConsumoId
+          ? { ...i, qtdAtual: i.qtdAtual + registro.quantidade }
           : i)
       }
     })
@@ -299,6 +340,7 @@ export function DataProvider({ children }: { children: ReactNode }) {
       addUsuario, updateUsuario, removeUsuario, getUsuarioPorEmail,
       addEstadia, updateEstadia, finalizarEstadia,
       registrarConsumo, registrarEntradaEstoque,
+      updateConsumoRegistro, removeConsumoRegistro,
       setMetaMes, getMetaMes,
       getEstadiaAtivaPorQuarto, getEstadiasPorHospede, getQuartosDisponiveisNoPeriodo,
       getConsumoDaEstadia, getTotalConsumoEstadia, getReceitaMes, getMovimentacoesRecentes,

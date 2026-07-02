@@ -1,7 +1,9 @@
-import { useState } from 'react'
+import { useMemo, useState } from 'react'
 import { useData } from '../../contexts/DataContext'
 import { Quarto, StatusQuarto, ItemMobilia, ItemConsumo } from '../../types'
 import { useAuth } from '../../contexts/AuthContext'
+import { BIBLIOTECA_ITENS, getIconeItem } from '../../constants/itensBiblioteca'
+import MultiSelectDropdown from '../shared/MultiSelectDropdown'
 import {
   Plus, BedDouble, Package, ShoppingBasket, TrendingUp,
   MoreVertical, Edit2, Trash2, Check, X
@@ -145,8 +147,23 @@ function QuartoCard({ quarto, itensMobilia, itensConsumo, onSelect, podeEditar, 
 export default function QuartosPage() {
   const { quartos, itensMobilia, itensConsumo, addQuarto, updateQuarto, removeQuarto } = useData()
   const [quartoSelecionadoId, setQuartoSelecionadoId] = useState<string | null>(null)
+  const [tiposFiltrados, setTiposFiltrados] = useState<string[]>([])
   const { isAuthorized } = useAuth()
   const podeEditar = isAuthorized('quartos')
+
+  const opcoesFiltroItem = useMemo(() => {
+    const tiposUsados = new Set(itensMobilia.map(i => i.tipo))
+    return BIBLIOTECA_ITENS
+      .filter(b => tiposUsados.has(b.value))
+      .map(b => ({ value: b.value, label: b.label, icon: getIconeItem(b.value, 'w-4 h-4') }))
+  }, [itensMobilia])
+
+  const quartosFiltrados = tiposFiltrados.length === 0
+    ? quartos
+    : quartos.filter(q => {
+        const tiposDoQuarto = itensMobilia.filter(i => (q.itensMobilia || []).includes(i.id)).map(i => i.tipo)
+        return tiposFiltrados.some(t => tiposDoQuarto.includes(t))
+      })
 
   const novoQuarto = () => {
     const num = quartos.length + 1
@@ -179,16 +196,24 @@ export default function QuartosPage() {
           <h1 className="font-display text-2xl lg:text-3xl text-brand-900">Quartos</h1>
           <p className="font-body text-sand-500 text-sm mt-0.5">{quartos.length} quarto{quartos.length !== 1 ? 's' : ''} cadastrado{quartos.length !== 1 ? 's' : ''}</p>
         </div>
-        {podeEditar && (
-          <button
-            onClick={novoQuarto}
-            className="flex items-center gap-2 px-4 py-2.5 bg-brand-700 hover:bg-brand-600 text-white font-body font-medium text-sm rounded-xl shadow-card-md transition-all"
-          >
-            <Plus className="w-4 h-4" />
-            <span className="hidden sm:inline">Novo quarto</span>
-            <span className="sm:hidden">Novo</span>
-          </button>
-        )}
+        <div className="flex items-center gap-2">
+          <MultiSelectDropdown
+            label="Filtrar por item"
+            options={opcoesFiltroItem}
+            selecionados={tiposFiltrados}
+            onChange={setTiposFiltrados}
+          />
+          {podeEditar && (
+            <button
+              onClick={novoQuarto}
+              className="flex items-center gap-2 px-4 py-2.5 bg-brand-700 hover:bg-brand-600 text-white font-body font-medium text-sm rounded-xl shadow-card-md transition-all"
+            >
+              <Plus className="w-4 h-4" />
+              <span className="hidden sm:inline">Novo quarto</span>
+              <span className="sm:hidden">Novo</span>
+            </button>
+          )}
+        </div>
       </div>
 
       {/* Cards */}
@@ -204,9 +229,15 @@ export default function QuartosPage() {
             </button>
           )}
         </div>
+      ) : quartosFiltrados.length === 0 ? (
+        <div className="flex flex-col items-center justify-center py-20 text-center">
+          <Package className="w-16 h-16 text-sand-300 mb-4" strokeWidth={1} />
+          <h3 className="font-body font-semibold text-brand-900 mb-1">Nenhum quarto com esses itens</h3>
+          <p className="font-body text-sand-400 text-sm">Tente remover algum filtro.</p>
+        </div>
       ) : (
         <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-4">
-          {quartos.map(q => (
+          {quartosFiltrados.map(q => (
             <QuartoCard
               key={q.id}
               quarto={q}

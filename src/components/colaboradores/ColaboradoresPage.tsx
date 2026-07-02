@@ -12,6 +12,7 @@ const AREAS_DISPONIVEIS: { value: AreaKey; label: string }[] = [
   { value: 'quartos', label: 'Quartos' },
   { value: 'hospedes', label: 'Hóspedes' },
   { value: 'entrada', label: 'Entrada' },
+  { value: 'mapaHospedes', label: 'Mapa de Hóspedes' },
   { value: 'itens', label: 'Itens' },
   { value: 'consumo', label: 'Consumo' },
 ]

@@ -2,11 +2,11 @@ import { useState } from 'react'
 import { useData } from '../../contexts/DataContext'
 import { Estadia, FormaPagamento } from '../../types'
 import { formatarMoeda, formatarData, calcularStatusPagamento } from '../../utils/format'
-import { lerArquivosComoBase64 } from '../../utils/upload'
 import RegistrarConsumoForm from '../shared/RegistrarConsumoForm'
+import GaleriaComprovantes from '../shared/GaleriaComprovantes'
 import {
   ArrowLeft, UserCircle, BedDouble, CalendarCheck, CalendarX, Banknote,
-  Image as ImageIcon, Upload, X, CheckCircle2, Wallet
+  Image as ImageIcon, CheckCircle2, Wallet
 } from 'lucide-react'
 
 const FORMAS_PAGAMENTO: { value: FormaPagamento; label: string }[] = [
@@ -32,7 +32,6 @@ export default function EntradaDetalhe({ estadia, onVoltar }: Props) {
   const [valorPago, setValorPago] = useState(estadia.valorPago)
   const [formaPagamento, setFormaPagamento] = useState<FormaPagamento>(estadia.formaPagamento)
   const [observacoes, setObservacoes] = useState(estadia.observacoes)
-  const [enviandoFotos, setEnviandoFotos] = useState(false)
 
   const hospede = hospedes.find(h => h.id === estadia.hospedeId)
   const quarto = quartos.find(q => q.id === estadia.quartoId)
@@ -46,23 +45,6 @@ export default function EntradaDetalhe({ estadia, onVoltar }: Props) {
 
   const salvarObservacoes = () => {
     updateEstadia(estadia.id, { observacoes })
-  }
-
-  const adicionarFotos = async (files: FileList | null) => {
-    if (!files || files.length === 0) return
-    const vagas = 5 - estadia.comprovantes.length
-    if (vagas <= 0) return
-    setEnviandoFotos(true)
-    try {
-      const novas = await lerArquivosComoBase64(Array.from(files).slice(0, vagas))
-      updateEstadia(estadia.id, { comprovantes: [...estadia.comprovantes, ...novas] })
-    } finally {
-      setEnviandoFotos(false)
-    }
-  }
-
-  const removerFoto = (idx: number) => {
-    updateEstadia(estadia.id, { comprovantes: estadia.comprovantes.filter((_, i) => i !== idx) })
   }
 
   const inputClass = "w-full px-3 py-2 rounded-xl border border-sand-200 bg-sand-50 font-body text-sm text-brand-900 focus:outline-none focus:ring-2 focus:ring-brand-400"
@@ -123,27 +105,12 @@ export default function EntradaDetalhe({ estadia, onVoltar }: Props) {
           {/* Comprovantes */}
           <div className="bg-white rounded-2xl shadow-card border border-sand-100 p-4">
             <p className="font-body font-medium text-brand-900 text-sm mb-3 flex items-center gap-2">
-              <ImageIcon className="w-4 h-4 text-brand-500" /> Comprovantes ({estadia.comprovantes.length}/5)
+              <ImageIcon className="w-4 h-4 text-brand-500" /> Comprovantes
             </p>
-            <div className="grid grid-cols-3 sm:grid-cols-5 gap-2 mb-3">
-              {estadia.comprovantes.map((src, idx) => (
-                <div key={idx} className="relative aspect-square rounded-xl overflow-hidden border border-sand-200 group">
-                  <img src={src} alt={`Comprovante ${idx + 1}`} className="w-full h-full object-cover" />
-                  <button onClick={() => removerFoto(idx)}
-                    className="absolute top-1 right-1 p-1 bg-white/90 rounded-lg text-red-500 opacity-0 group-hover:opacity-100 transition-opacity">
-                    <X className="w-3 h-3" />
-                  </button>
-                </div>
-              ))}
-            </div>
-            {estadia.comprovantes.length < 5 && (
-              <label className="flex items-center justify-center gap-2 px-4 py-2.5 rounded-xl border-2 border-dashed border-sand-300 text-sand-500 hover:border-brand-300 hover:text-brand-600 cursor-pointer transition-colors font-body text-sm">
-                <Upload className="w-4 h-4" />
-                {enviandoFotos ? 'Enviando...' : 'Adicionar fotos (recibos, comprovantes...)'}
-                <input type="file" accept="image/*" multiple className="hidden" disabled={enviandoFotos}
-                  onChange={e => { adicionarFotos(e.target.files); e.target.value = '' }} />
-              </label>
-            )}
+            <GaleriaComprovantes
+              arquivos={estadia.comprovantes}
+              onChange={comprovantes => updateEstadia(estadia.id, { comprovantes })}
+            />
           </div>
 
           {/* Observações */}

@@ -1,35 +1,10 @@
 import { useState } from 'react'
 import { useData } from '../../contexts/DataContext'
-import { ItemMobilia, TipoItem } from '../../types'
+import { ItemMobilia } from '../../types'
 import { useAuth } from '../../contexts/AuthContext'
-import {
-  Plus, Package, BedDouble, Tv, Refrigerator, AirVent, Microwave, Fan, ShowerHead, Bath,
-  Sofa, Edit2, Trash2, X, Check
-} from 'lucide-react'
-
-const TIPOS: { value: TipoItem; label: string; icon: React.ReactNode }[] = [
-  { value: 'cama',                    label: 'Cama',                      icon: <BedDouble className="w-6 h-6" strokeWidth={1.5} /> },
-  { value: 'guarda-roupa',            label: 'Guarda-roupa',              icon: <Sofa className="w-6 h-6" strokeWidth={1.5} /> },
-  { value: 'televisao',               label: 'Televisão',                 icon: <Tv className="w-6 h-6" strokeWidth={1.5} /> },
-  { value: 'frigobar',                label: 'Frigobar',                  icon: <Refrigerator className="w-6 h-6" strokeWidth={1.5} /> },
-  { value: 'ar-condicionado',         label: 'Ar-condicionado',           icon: <AirVent className="w-6 h-6" strokeWidth={1.5} /> },
-  { value: 'microondas',              label: 'Micro-ondas',               icon: <Microwave className="w-6 h-6" strokeWidth={1.5} /> },
-  { value: 'ventilador-teto',         label: 'Ventilador de teto',        icon: <Fan className="w-6 h-6" strokeWidth={1.5} /> },
-  { value: 'banheiro-agua-quente',    label: 'Banheiro c/ água quente',   icon: <ShowerHead className="w-6 h-6" strokeWidth={1.5} /> },
-  { value: 'banheiro-sem-agua-quente', label: 'Banheiro s/ água quente',  icon: <Bath className="w-6 h-6" strokeWidth={1.5} /> },
-]
-
-const ICONE_POR_TIPO: Record<TipoItem, React.ReactNode> = {
-  'cama':                    <BedDouble className="w-10 h-10" strokeWidth={1.2} />,
-  'guarda-roupa':            <Sofa className="w-10 h-10" strokeWidth={1.2} />,
-  'televisao':               <Tv className="w-10 h-10" strokeWidth={1.2} />,
-  'frigobar':                <Refrigerator className="w-10 h-10" strokeWidth={1.2} />,
-  'ar-condicionado':         <AirVent className="w-10 h-10" strokeWidth={1.2} />,
-  'microondas':              <Microwave className="w-10 h-10" strokeWidth={1.2} />,
-  'ventilador-teto':         <Fan className="w-10 h-10" strokeWidth={1.2} />,
-  'banheiro-agua-quente':    <ShowerHead className="w-10 h-10" strokeWidth={1.2} />,
-  'banheiro-sem-agua-quente': <Bath className="w-10 h-10" strokeWidth={1.2} />,
-}
+import { TIPOS_ATALHO, BIBLIOTECA_ITENS, getItemBiblioteca, getIconeItem } from '../../constants/itensBiblioteca'
+import ModalBibliotecaItens from './ModalBibliotecaItens'
+import { Plus, Package, Edit2, Trash2, X, Check } from 'lucide-react'
 
 interface FormItemProps {
   inicial?: ItemMobilia
@@ -38,10 +13,18 @@ interface FormItemProps {
 }
 
 function FormItem({ inicial, onSalvar, onCancelar }: FormItemProps) {
-  const [tipo, setTipo] = useState<TipoItem>(inicial?.tipo || 'cama')
+  const [tipo, setTipo] = useState<string>(inicial?.tipo || 'cama')
   const [nome, setNome] = useState(inicial?.nome || '')
+  const [bibliotecaAberta, setBibliotecaAberta] = useState(false)
 
-  const tipoSelecionado = TIPOS.find(t => t.value === tipo)!
+  const tipoSelecionado = getItemBiblioteca(tipo)
+  const labelTipo = tipoSelecionado?.label || tipo
+
+  const escolherTipo = (value: string, label: string) => {
+    setTipo(value)
+    setNome(label)
+    setBibliotecaAberta(false)
+  }
 
   return (
     <div className="bg-white rounded-2xl shadow-card-lg border border-sand-100 p-6">
@@ -53,17 +36,28 @@ function FormItem({ inicial, onSalvar, onCancelar }: FormItemProps) {
       <div className="mb-4">
         <label className="block font-body text-xs font-medium text-brand-700 uppercase tracking-wider mb-2">Tipo</label>
         <div className="grid grid-cols-3 sm:grid-cols-5 gap-2">
-          {TIPOS.map(t => (
+          {TIPOS_ATALHO.map(t => (
             <button key={t.value} onClick={() => { setTipo(t.value); setNome(t.label) }}
               className={`flex flex-col items-center gap-1.5 p-3 rounded-xl border-2 transition-all ${
                 tipo === t.value
                   ? 'border-brand-500 bg-brand-50 text-brand-700'
                   : 'border-sand-200 text-sand-500 hover:border-sand-300'
               }`}>
-              {t.icon}
+              <t.icon className="w-6 h-6" strokeWidth={1.5} />
               <span className="font-body text-xs text-center leading-tight">{t.label}</span>
             </button>
           ))}
+          <button onClick={() => setBibliotecaAberta(true)}
+            className={`flex flex-col items-center gap-1.5 p-3 rounded-xl border-2 border-dashed transition-all ${
+              !TIPOS_ATALHO.some(t => t.value === tipo)
+                ? 'border-brand-500 bg-brand-50 text-brand-700'
+                : 'border-sand-300 text-sand-400 hover:border-brand-300 hover:text-brand-600'
+            }`}>
+            <Plus className="w-6 h-6" strokeWidth={1.5} />
+            <span className="font-body text-xs text-center leading-tight">
+              {!TIPOS_ATALHO.some(t => t.value === tipo) ? labelTipo : 'Mais opções'}
+            </span>
+          </button>
         </div>
       </div>
 
@@ -72,7 +66,7 @@ function FormItem({ inicial, onSalvar, onCancelar }: FormItemProps) {
         <label className="block font-body text-xs font-medium text-brand-700 uppercase tracking-wider mb-2">Nome</label>
         <input
           value={nome} onChange={e => setNome(e.target.value)}
-          placeholder={tipoSelecionado.label}
+          placeholder={labelTipo}
           className="w-full px-3 py-2.5 rounded-xl border border-sand-200 bg-sand-50 font-body text-sm text-brand-900 placeholder:text-sand-400 focus:outline-none focus:ring-2 focus:ring-brand-400"
         />
       </div>
@@ -81,11 +75,15 @@ function FormItem({ inicial, onSalvar, onCancelar }: FormItemProps) {
         <button onClick={onCancelar} className="flex items-center gap-1.5 px-4 py-2 rounded-xl font-body text-sm text-sand-600 hover:bg-sand-100">
           <X className="w-4 h-4" /> Cancelar
         </button>
-        <button onClick={() => onSalvar({ nome: nome || tipoSelecionado.label, tipo })}
+        <button onClick={() => onSalvar({ nome: nome || labelTipo, tipo })}
           className="flex items-center gap-1.5 px-4 py-2 rounded-xl bg-brand-700 hover:bg-brand-600 text-white font-body text-sm font-medium shadow-card-md transition-all">
           <Check className="w-4 h-4" /> Salvar
         </button>
       </div>
+
+      {bibliotecaAberta && (
+        <ModalBibliotecaItens onSelecionar={escolherTipo} onFechar={() => setBibliotecaAberta(false)} />
+      )}
     </div>
   )
 }
@@ -112,11 +110,17 @@ export default function ItensPage() {
     if (confirm('Excluir este item?')) removeItemMobilia(id)
   }
 
-  // Agrupar por tipo
-  const porTipo = TIPOS.map(t => ({
-    ...t,
-    items: itens.filter(i => i.tipo === t.value)
-  })).filter(g => g.items.length > 0)
+  // Agrupar por tipo, resolvendo label pela biblioteca (cobre também tipos personalizados)
+  const tiposUsados = Array.from(new Set(itens.map(i => i.tipo)))
+  const porTipo = tiposUsados.map(tipoValue => ({
+    value: tipoValue,
+    label: getItemBiblioteca(tipoValue)?.label || tipoValue,
+    items: itens.filter(i => i.tipo === tipoValue)
+  })).sort((a, b) => {
+    const ia = BIBLIOTECA_ITENS.findIndex(b2 => b2.value === a.value)
+    const ib = BIBLIOTECA_ITENS.findIndex(b2 => b2.value === b.value)
+    return (ia === -1 ? 999 : ia) - (ib === -1 ? 999 : ib)
+  })
 
   return (
     <div className="space-y-6">
@@ -152,7 +156,7 @@ export default function ItensPage() {
           {porTipo.map(grupo => (
             <div key={grupo.value}>
               <div className="flex items-center gap-2 mb-3">
-                <span className="text-brand-500">{grupo.icon}</span>
+                <span className="text-brand-500">{getIconeItem(grupo.value, 'w-5 h-5')}</span>
                 <h2 className="font-body font-semibold text-brand-800 text-sm">{grupo.label}</h2>
                 <span className="font-body text-xs text-sand-400 bg-sand-100 px-2 py-0.5 rounded-full">{grupo.items.length}</span>
               </div>
@@ -160,7 +164,7 @@ export default function ItensPage() {
                 {grupo.items.map(item => (
                   <div key={item.id}
                     className="bg-white rounded-2xl shadow-card border border-sand-100 p-3 flex flex-col items-center gap-2 relative group">
-                    <span className="text-brand-400">{ICONE_POR_TIPO[item.tipo]}</span>
+                    <span className="text-brand-400">{getIconeItem(item.tipo, 'w-10 h-10', 1.2)}</span>
                     <p className="font-body text-xs text-brand-800 text-center font-medium leading-tight">{item.nome}</p>
                     {item.quartoId && (
                       <span className="font-body text-xs text-sand-400 text-center truncate w-full text-center">Alocado</span>

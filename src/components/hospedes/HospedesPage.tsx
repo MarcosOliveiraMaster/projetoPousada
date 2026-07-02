@@ -1,11 +1,14 @@
-import { useState, KeyboardEvent } from 'react'
+import { useMemo, useState, KeyboardEvent } from 'react'
 import { useData } from '../../contexts/DataContext'
 import { Hospede } from '../../types'
 import { useAuth } from '../../contexts/AuthContext'
+import MultiSelectDropdown from '../shared/MultiSelectDropdown'
 import {
   Plus, Users, Search, Edit2, Trash2, X, Check,
   Phone, Mail, MapPin, Globe2, CalendarCheck, CalendarX, Tag
 } from 'lucide-react'
+
+type FiltroStatus = 'todos' | 'hospedado' | 'sem-estadia'
 
 const SUGESTOES_PREFERENCIAS = [
   'Vista para o mar', 'Andar térreo', 'Silencioso', 'Pet friendly',
@@ -141,13 +144,29 @@ function FormHospede({ inicial, onSalvar, onCancelar }: FormHospedeProps) {
   )
 }
 
+const FILTROS_STATUS: { value: FiltroStatus; label: string }[] = [
+  { value: 'todos', label: 'Todos' },
+  { value: 'hospedado', label: 'Hospedado agora' },
+  { value: 'sem-estadia', label: 'Sem estadia ativa' },
+]
+
 export default function HospedesPage() {
   const { hospedes, quartos, addHospede, updateHospede, removeHospede, getEstadiasPorHospede } = useData()
   const [busca, setBusca] = useState('')
   const [formAberto, setFormAberto] = useState(false)
   const [editando, setEditando] = useState<Hospede | null>(null)
+  const [filtroStatus, setFiltroStatus] = useState<FiltroStatus>('todos')
+  const [tagsFiltradas, setTagsFiltradas] = useState<string[]>([])
   const { isAuthorized } = useAuth()
   const podeEditar = isAuthorized('hospedes')
+
+  const hospedadoAgora = (hospedeId: string) => getEstadiasPorHospede(hospedeId).some(e => e.status === 'ativa')
+
+  const opcoesTags = useMemo(() => {
+    const todas = new Set<string>()
+    hospedes.forEach(h => h.preferencias.forEach(t => todas.add(t)))
+    return Array.from(todas).sort().map(t => ({ value: t, label: t }))
+  }, [hospedes])
 
   const salvar = (dados: Omit<Hospede, 'id' | 'createdAt'>) => {
     if (editando) {
@@ -165,26 +184,47 @@ export default function HospedesPage() {
 
   const nomeQuarto = (id?: string) => quartos.find(q => q.id === id)?.nome || '—'
 
-  const filtrados = hospedes.filter(h =>
-    h.nome?.toLowerCase().includes(busca.toLowerCase()) ||
-    h.cpf?.includes(busca) ||
-    h.email?.toLowerCase().includes(busca.toLowerCase())
-  ).sort((a, b) => (b.createdAt || 0) - (a.createdAt || 0))
+  const filtrados = hospedes
+    .filter(h =>
+      h.nome?.toLowerCase().includes(busca.toLowerCase()) ||
+      h.cpf?.includes(busca) ||
+      h.email?.toLowerCase().includes(busca.toLowerCase())
+    )
+    .filter(h => {
+      if (filtroStatus === 'todos') return true
+      const ativo = hospedadoAgora(h.id)
+      return filtroStatus === 'hospedado' ? ativo : !ativo
+    })
+    .filter(h => tagsFiltradas.length === 0 || tagsFiltradas.some(t => h.preferencias.includes(t)))
+    .sort((a, b) => (b.createdAt || 0) - (a.createdAt || 0))
 
   return (
     <div className="space-y-6">
-      <div className="flex items-center justify-between">
+      <div className="flex items-start justify-between flex-wrap gap-3">
         <div>
           <h1 className="font-display text-2xl lg:text-3xl text-brand-900">Hóspedes</h1>
           <p className="font-body text-sand-500 text-sm mt-0.5">{hospedes.length} hóspede{hospedes.length !== 1 ? 's' : ''} cadastrado{hospedes.length !== 1 ? 's' : ''}</p>
         </div>
-        {podeEditar && (
-          <button onClick={() => { setFormAberto(true); setEditando(null) }}
-            className="flex items-center gap-2 px-4 py-2.5 bg-brand-700 hover:bg-brand-600 text-white font-body font-medium text-sm rounded-xl shadow-card-md transition-all">
-            <Plus className="w-4 h-4" />
-            <span className="hidden sm:inline">Novo hóspede</span>
-          </button>
-        )}
+        <div className="flex items-center gap-2 flex-wrap justify-end">
+          <div className="flex items-center gap-1 bg-white border border-sand-200 rounded-xl p-1">
+            {FILTROS_STATUS.map(f => (
+              <button key={f.value} onClick={() => setFiltroStatus(f.value)}
+                className={`px-2.5 py-1.5 rounded-lg font-body text-xs font-medium transition-colors ${
+                  filtroStatus === f.value ? 'bg-brand-700 text-white' : 'text-sand-600 hover:bg-sand-100'
+                }`}>
+                {f.label}
+              </button>
+            ))}
+          </div>
+          <MultiSelectDropdown label="Tags" options={opcoesTags} selecionados={tagsFiltradas} onChange={setTagsFiltradas} />
+          {podeEditar && (
+            <button onClick={() => { setFormAberto(true); setEditando(null) }}
+              className="flex items-center gap-2 px-4 py-2.5 bg-brand-700 hover:bg-brand-600 text-white font-body font-medium text-sm rounded-xl shadow-card-md transition-all">
+              <Plus className="w-4 h-4" />
+              <span className="hidden sm:inline">Novo hóspede</span>
+            </button>
+          )}
+        </div>
       </div>
 
       {(formAberto && !editando) && (

@@ -7,7 +7,8 @@ import {
   ResponsiveContainer, LineChart, Line
 } from 'recharts'
 import {
-  Users, Banknote, CalendarClock, BedDouble, DoorOpen, TrendingUp, Target, Edit2, Check, RotateCcw
+  Users, Banknote, CalendarClock, BedDouble, DoorOpen, TrendingUp, Target, Edit2, Check, RotateCcw,
+  ChevronDown, Search, X
 } from 'lucide-react'
 import BuscaDisponibilidade from './BuscaDisponibilidade'
 import OcupacaoCalendario from './OcupacaoCalendario'
@@ -40,6 +41,10 @@ export default function DashboardPage() {
   const { usuario, isAuthorized } = useAuth()
   const { quartos, hospedes, estadias, getReceitaMes, getMetaMes, setMetaMes, resetDadosExemplo } = useData()
   const [editandoMeta, setEditandoMeta] = useState(false)
+  const [filtroEstadiasAberto, setFiltroEstadiasAberto] = useState(false)
+  const [filtroDataInicio, setFiltroDataInicio] = useState('')
+  const [filtroDataFim, setFiltroDataFim] = useState('')
+  const [filtroClienteNome, setFiltroClienteNome] = useState('')
 
   const mesChave = mesAtualChave()
   const receitaMes = getReceitaMes(mesChave)
@@ -95,6 +100,23 @@ export default function DashboardPage() {
   const salvarMeta = () => {
     setMetaMes(mesChave, metaInput)
     setEditandoMeta(false)
+  }
+
+  const filtroAtivo = Boolean(filtroDataInicio || filtroDataFim || filtroClienteNome.trim())
+  const estadiasOrdenadas = [...estadias].sort((a, b) => b.createdAt - a.createdAt)
+  const estadiasExibidas = filtroAtivo
+    ? estadiasOrdenadas.filter(e => {
+        if (filtroDataInicio && e.dataEntrada < filtroDataInicio) return false
+        if (filtroDataFim && e.dataEntrada > filtroDataFim) return false
+        if (filtroClienteNome.trim() && !nomeHospede(e.hospedeId).toLowerCase().includes(filtroClienteNome.trim().toLowerCase())) return false
+        return true
+      })
+    : estadiasOrdenadas.slice(0, 5)
+
+  const limparFiltroEstadias = () => {
+    setFiltroDataInicio('')
+    setFiltroDataFim('')
+    setFiltroClienteNome('')
   }
 
   return (
@@ -233,11 +255,45 @@ export default function DashboardPage() {
       {/* Estadias recentes */}
       {estadias.length > 0 && (
         <div className="bg-white rounded-2xl p-6 shadow-card border border-sand-100">
-          <h2 className="font-body font-semibold text-brand-900 text-base mb-4 flex items-center gap-2">
-            <CalendarClock className="w-4 h-4 text-brand-600" /> Estadias recentes
-          </h2>
+          <button
+            onClick={() => setFiltroEstadiasAberto(v => !v)}
+            className="w-full flex items-center justify-between gap-2 mb-4 group"
+          >
+            <h2 className="font-body font-semibold text-brand-900 text-base flex items-center gap-2">
+              <CalendarClock className="w-4 h-4 text-brand-600" />
+              {filtroAtivo ? `Estadias filtradas (${estadiasExibidas.length})` : 'Estadias recentes'}
+            </h2>
+            <ChevronDown className={`w-4 h-4 text-sand-400 group-hover:text-brand-600 transition-transform ${filtroEstadiasAberto ? 'rotate-180' : ''}`} />
+          </button>
+
+          {filtroEstadiasAberto && (
+            <div className="flex flex-col sm:flex-row gap-2 mb-4 pb-4 border-b border-sand-100">
+              <input type="date" value={filtroDataInicio} onChange={e => setFiltroDataInicio(e.target.value)}
+                className="px-3 py-2 rounded-xl border border-sand-200 bg-sand-50 font-body text-sm text-brand-900 focus:outline-none focus:ring-2 focus:ring-brand-400" />
+              <input type="date" value={filtroDataFim} onChange={e => setFiltroDataFim(e.target.value)}
+                className="px-3 py-2 rounded-xl border border-sand-200 bg-sand-50 font-body text-sm text-brand-900 focus:outline-none focus:ring-2 focus:ring-brand-400" />
+              <div className="relative flex-1">
+                <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-sand-400" />
+                <input
+                  value={filtroClienteNome} onChange={e => setFiltroClienteNome(e.target.value)}
+                  placeholder="Buscar por nome do hóspede..."
+                  className="w-full pl-10 pr-3 py-2 rounded-xl border border-sand-200 bg-sand-50 font-body text-sm text-brand-900 placeholder:text-sand-400 focus:outline-none focus:ring-2 focus:ring-brand-400"
+                />
+              </div>
+              {filtroAtivo && (
+                <button onClick={limparFiltroEstadias}
+                  className="flex items-center gap-1 px-3 py-2 rounded-xl font-body text-sm text-sand-500 hover:text-red-500 hover:bg-red-50 transition-colors">
+                  <X className="w-3.5 h-3.5" /> Limpar
+                </button>
+              )}
+            </div>
+          )}
+
           <div className="space-y-2">
-            {[...estadias].sort((a, b) => b.createdAt - a.createdAt).slice(0, 5).map(e => (
+            {estadiasExibidas.length === 0 && (
+              <p className="font-body text-sand-400 text-sm text-center py-4">Nenhuma estadia encontrada com esses filtros.</p>
+            )}
+            {estadiasExibidas.map(e => (
               <div key={e.id} className="flex items-center justify-between py-2.5 px-3 rounded-xl hover:bg-sand-50 transition-colors">
                 <div className="flex items-center gap-3">
                   <div className="w-8 h-8 rounded-lg bg-brand-100 flex items-center justify-center flex-shrink-0">
